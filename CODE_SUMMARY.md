@@ -6,8 +6,8 @@
 
 ## 1. 현재 상태
 
-- 프로젝트 준비 단계
-- 실제 애플리케이션 코드는 아직 구현되지 않음
+- Frontend와 Backend 기본 골격 생성 완료
+- 도메인 기능은 아직 구현되지 않음
 - `AGENTS.md`에 개발 규칙, 기술 스택, 핵심 정책, 구현 순서가 정의되어 있음
 - 상세 요구사항/설계/UI 시안은 `docs/`에 별도 보관 예정
 
@@ -19,67 +19,65 @@
 top/
 ├─ AGENTS.md
 ├─ CODE_SUMMARY.md
+├─ frontend/
+│  ├─ src/
+│  │  ├─ App.tsx
+│  │  ├─ index.css
+│  │  └─ main.tsx
+│  ├─ index.html
+│  ├─ package.json
+│  └─ vite.config.ts
+├─ backend/
+│  ├─ gradle/wrapper/
+│  ├─ src/main/java/com/top/BackendApplication.java
+│  ├─ src/main/resources/application.properties
+│  ├─ src/test/java/com/top/BackendApplicationTests.java
+│  ├─ build.gradle
+│  └─ settings.gradle
 └─ docs/
    ├─ requirements.md
    ├─ technical-design.md
    └─ mockups/
-      ├─ web.html
-      └─ mobile.html
+      ├─ web-mockup.html
+      └─ mobile-mockup.html
 ```
-
-`frontend/`, `backend/`는 실제 생성 후 이 문서에 반영한다.
 
 ## 3. 실제 구현된 주요 흐름
 
-아직 없음.
-
-구현 완료된 기능만 여기에 기록한다.
-
-예:
-
-```text
-Poll 목록 조회
-React -> GET /api/polls -> Spring Boot -> PostgreSQL -> Response
-```
+- React 애플리케이션이 `TOP` 기본 화면을 렌더링함
+- Spring Boot 애플리케이션이 내장 Tomcat으로 기동됨
+- Poll 등 도메인 흐름은 아직 없음
 
 ## 4. 코드에 반영된 주요 결정
 
-현재 실제 코드에 반영된 결정은 없음.
-
-구현 후 다음과 같은 항목만 기록한다.
-
-- 실제 적용된 Package 구조
-- 실제 적용된 DB Schema / Migration
-- 실제 사용 중인 조회 방식
-- 실제 적용된 Transaction / Concurrency 처리
-- 실제 적용된 Cache / SSE 구조
-- 설계 문서와 달라진 중요한 결정
+- Frontend: React 19, TypeScript 6, Vite 8
+- Backend: Java 21, Spring Boot 4.1.1, Gradle 9.7.1
+- Backend는 기본 기동 확인에 필요한 Spring Web MVC만 포함
+- JPA, Flyway, Security 등은 해당 구현 단계에서 추가
 
 ## 5. 실제 성공한 실행 / 테스트 명령
 
-아직 없음.
-
-성공이 확인된 명령만 기록한다.
-
-예:
-
 ```bash
+cd frontend
+npm run build
+npm run dev -- --host 127.0.0.1
+
+cd backend
 ./gradlew test
-npm test
-docker compose up -d
+./gradlew bootRun --args="--server.address=127.0.0.1"
 ```
 
-실행하지 않았거나 실패한 명령은 성공한 것으로 기록하지 않는다.
+- Frontend `/`: HTTP 200 확인
+- Backend: 8080 포트 기동 확인 (`/`는 도메인 엔드포인트가 없어 HTTP 404)
 
 ## 6. 미완성 항목 / 다음 작업
 
 현재 다음 작업:
 
-1. 개발 환경 확인
-2. `frontend/` React + TypeScript + Vite 초기화
-3. `backend/` Java 21 + Spring Boot + Gradle 초기화
-4. PostgreSQL + Flyway 초기 구성
-5. Poll / PollOption 기본 Schema 및 조회 API 구현
+1. PostgreSQL + Flyway 초기 구성
+2. Poll / PollOption 기본 Schema 및 조회 API 구현
+3. Redis 인기 투표 Cache
+4. React와 Poll API 연결
 
 세부 구현 순서는 `AGENTS.md`를 따른다.
 

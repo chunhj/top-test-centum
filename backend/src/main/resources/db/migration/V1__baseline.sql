@@ -1,0 +1,1 @@
+-- Flyway baseline. Domain tables are introduced in their roadmap stages.

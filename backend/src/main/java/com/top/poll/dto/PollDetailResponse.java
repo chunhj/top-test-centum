@@ -1,6 +1,7 @@
 package com.top.poll.dto;
 
 import com.top.poll.domain.Poll;
+import com.top.poll.domain.PollPhase;
 import com.top.poll.domain.PollStatus;
 
 import java.time.Instant;
@@ -13,6 +14,7 @@ public record PollDetailResponse(
         String type,
         int maxSelections,
         PollStatus status,
+        PollPhase phase,
         Instant startsAt,
         Instant endsAt,
         List<OptionResponse> options
@@ -25,6 +27,7 @@ public record PollDetailResponse(
                 poll.getPollType(),
                 poll.getMaxSelections(),
                 poll.getStatus(),
+                PollPhase.at(poll, Instant.now()),
                 poll.getStartsAt(),
                 poll.getEndsAt(),
                 poll.getOptions().stream().map(OptionResponse::from).toList()

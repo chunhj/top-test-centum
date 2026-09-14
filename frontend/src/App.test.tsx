@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -29,6 +29,22 @@ describe('Poll API screens', () => {
     renderRoute('/polls/1')
 
     expect(await screen.findByText('후보 A')).toBeTruthy()
+    expect(screen.getByText('현재 랭킹 TOP 3')).toBeTruthy()
+    expect(screen.getByText('실시간 투표 현황')).toBeTruthy()
+    expect(screen.getByText('마감 정책')).toBeTruthy()
     expect(fetch).toHaveBeenCalledWith('/api/polls/1')
+  })
+
+  it('renders live results returned by the results API', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((path: string) => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(path.endsWith('/results')
+        ? { pollId: 1, phase: 'LIVE_VISIBLE', voted: true, results: [{ optionId: 3, voteCount: 6, percentage: 100 }] }
+        : { pollId: 1, title: 'Poll', description: 'Pick one', type: 'SINGLE', maxSelections: 1, status: 'OPEN', phase: 'LIVE_VISIBLE', startsAt: '2026-09-01T00:00:00Z', endsAt: '2026-09-30T00:00:00Z', options: [{ optionId: 3, name: 'Candidate A', imageUrl: null, team: 'Team A' }] }),
+    })))
+    renderRoute('/polls/1')
+
+    await waitFor(() => expect(document.querySelector('.result-main b')?.textContent).toContain('6'))
+    expect(fetch).toHaveBeenCalledWith('/api/polls/1/results')
   })
 })

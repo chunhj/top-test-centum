@@ -1,4 +1,10 @@
 /docs/
+!/docs/
+/docs/*
+!/docs/mockups/
+/docs/mockups/*
+!/docs/mockups/*-mockup-after.html
 *.md
 !README.md
 !read.md
+!CODE_SUMMARY.md

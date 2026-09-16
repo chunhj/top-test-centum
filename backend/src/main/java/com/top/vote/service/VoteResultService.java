@@ -21,19 +21,19 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class VoteResultService {
 	private final PollRepository pollRepository;
 	private final BallotRepository ballotRepository;
-	private final PollOptionCounterRepository counterRepository;
+	private final PollOptionCounterRepository pollOptionCounterRepository;
 
 	public PollResultsResponse findResults(long pollId, String voterKey) {
 		Poll poll = pollRepository.findById(pollId)
 				.orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "POLL_NOT_FOUND"));
 		PollPhase phase = PollPhase.at(poll, Instant.now());
-		boolean voted = ballotRepository.existsByPollIdAndVoterKey(pollId, voterKey);
-		var results = phase == PollPhase.CLOSED || phase == PollPhase.LIVE_VISIBLE && voted
-				? counterRepository.findResults(pollId).stream()
+		boolean hasVoted = ballotRepository.existsByPollIdAndVoterKey(pollId, voterKey);
+		var optionResults = phase == PollPhase.CLOSED || phase == PollPhase.LIVE_VISIBLE && hasVoted
+				? pollOptionCounterRepository.findResults(pollId).stream()
 						.map(result -> new PollResultsResponse.OptionResult(
 								result.optionId(), result.voteCount(), result.percentage()))
 						.toList()
 				: null;
-		return new PollResultsResponse(pollId, phase, voted, ballotRepository.countByPollId(pollId), results);
+		return new PollResultsResponse(pollId, phase, hasVoted, ballotRepository.countByPollId(pollId), optionResults);
 	}
 }

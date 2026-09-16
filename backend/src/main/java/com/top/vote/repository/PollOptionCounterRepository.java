@@ -12,6 +12,11 @@ import java.util.List;
 public class PollOptionCounterRepository {
 	private final JdbcClient jdbcClient;
 
+	public void initialize(List<Long> optionIds) {
+		optionIds.forEach(optionId -> jdbcClient.sql("INSERT INTO poll_option_counter(option_id) VALUES (:optionId) ON CONFLICT DO NOTHING")
+				.param("optionId", optionId).update());
+	}
+
 	public void adjust(long optionId, int delta) {
 		int updated = jdbcClient.sql("""
 				UPDATE poll_option_counter

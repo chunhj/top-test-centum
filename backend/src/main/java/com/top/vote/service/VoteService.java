@@ -11,10 +11,12 @@ import com.top.vote.repository.BallotRepository;
 import com.top.vote.repository.IdempotencyRequestRepository;
 import com.top.vote.repository.PollOptionCounterRepository;
 import com.top.vote.repository.VoteHistoryRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -27,13 +29,17 @@ import java.util.UUID;
 import static org.springframework.http.HttpStatus.*;
 
 @Service
-@RequiredArgsConstructor
 public class VoteService {
 	private final PollRepository pollRepository;
 	private final BallotRepository ballotRepository;
 	private final IdempotencyRequestRepository idempotencyRequestRepository;
-	private final PollOptionCounterRepository counterRepository;
+	private final PollOptionCounterRepository pollOptionCounterRepository;
 	private final VoteHistoryRepository voteHistoryRepository;
+private final VoteStreamService voteStreamService;
+
+ public VoteService(PollRepository pollRepository, BallotRepository ballotRepository, IdempotencyRequestRepository idempotencyRequestRepository, PollOptionCounterRepository pollOptionCounterRepository, VoteHistoryRepository voteHistoryRepository) { this(pollRepository, ballotRepository, idempotencyRequestRepository, pollOptionCounterRepository, voteHistoryRepository, null); }
+
+ @Autowired public VoteService(PollRepository pollRepository, BallotRepository ballotRepository, IdempotencyRequestRepository idempotencyRequestRepository, PollOptionCounterRepository pollOptionCounterRepository, VoteHistoryRepository voteHistoryRepository, VoteStreamService voteStreamService) { this.pollRepository = pollRepository; this.ballotRepository = ballotRepository; this.idempotencyRequestRepository = idempotencyRequestRepository; this.pollOptionCounterRepository = pollOptionCounterRepository; this.voteHistoryRepository = voteHistoryRepository; this.voteStreamService = voteStreamService; }
 
 	@Transactional
 	public VoteResult castVote(long pollId, Long optionId, String voterKey, UUID idempotencyKey) {
@@ -46,19 +52,19 @@ public class VoteService {
 
 		Poll poll = pollRepository.findById(pollId)
 				.orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "POLL_NOT_FOUND"));
-		String requestHash = requestHash(optionId);
+		String requestHash = hashVoteRequest(optionId);
 		Long requestId = idempotencyRequestRepository.claim(voterKey, pollId, idempotencyKey, requestHash);
 		if (requestId == null) {
-			IdempotencyRequestRepository.StoredRequest stored = idempotencyRequestRepository
+			IdempotencyRequestRepository.StoredRequest storedRequest = idempotencyRequestRepository
 					.find(voterKey, pollId, idempotencyKey)
 					.orElseThrow(() -> new IllegalStateException("Completed idempotency request was not found"));
-			if (!stored.requestHash().equals(requestHash)) {
+			if (!storedRequest.requestHash().equals(requestHash)) {
 				throw new ResponseStatusException(CONFLICT, "IDEMPOTENCY_CONFLICT");
 			}
-			return new VoteResult(stored.ballotId(), stored.optionId());
+			return new VoteResult(storedRequest.ballotId(), storedRequest.optionId());
 		}
 
-		validateOpen(poll);
+		validateVotingAllowed(poll);
 		if (poll.getMaxSelections() != 1) {
 			throw new ResponseStatusException(BAD_REQUEST, "INVALID_SELECTION_COUNT");
 		}
@@ -68,17 +74,23 @@ public class VoteService {
 				.findFirst()
 				.orElseThrow(() -> new ResponseStatusException(BAD_REQUEST, "INVALID_POLL_OPTION"));
 
-		VoteResult result = ballotRepository.findByPollIdAndVoterKey(pollId, voterKey)
+		VoteResult voteResult = ballotRepository.findByPollIdAndVoterKey(pollId, voterKey)
 				.map(ballot -> changeVote(ballot, option))
 				.orElseGet(() -> createVote(poll, option, voterKey));
-		idempotencyRequestRepository.complete(requestId, result.ballotId(), result.optionId());
-		return result;
+		idempotencyRequestRepository.complete(requestId, voteResult.ballotId(), voteResult.optionId());
+		if (voteStreamService != null) {
+
+TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override public void afterCommit() { voteStreamService.publishAfterCommit(pollId); }
+		});
+		}
+		return voteResult;
 	}
 
 	private VoteResult createVote(Poll poll, PollOption option, String voterKey) {
 		try {
 			Ballot ballot = ballotRepository.saveAndFlush(Ballot.cast(poll, voterKey, option));
-			counterRepository.adjust(option.getId(), 1);
+			pollOptionCounterRepository.adjust(option.getId(), 1);
 			return new VoteResult(ballot.getId(), option.getId());
 		} catch (DataIntegrityViolationException exception) {
 			throw new ResponseStatusException(CONFLICT, "DUPLICATE_VOTE", exception);
@@ -100,15 +112,15 @@ public class VoteService {
 
 	private void adjustCountersInOrder(long oldOptionId, long newOptionId) {
 		if (oldOptionId < newOptionId) {
-			counterRepository.adjust(oldOptionId, -1);
-			counterRepository.adjust(newOptionId, 1);
+			pollOptionCounterRepository.adjust(oldOptionId, -1);
+			pollOptionCounterRepository.adjust(newOptionId, 1);
 		} else {
-			counterRepository.adjust(newOptionId, 1);
-			counterRepository.adjust(oldOptionId, -1);
+			pollOptionCounterRepository.adjust(newOptionId, 1);
+			pollOptionCounterRepository.adjust(oldOptionId, -1);
 		}
 	}
 
-	private String requestHash(long optionId) {
+	private String hashVoteRequest(long optionId) {
 		try {
 			byte[] hash = MessageDigest.getInstance("SHA-256")
 					.digest(Long.toString(optionId).getBytes(StandardCharsets.UTF_8));
@@ -118,7 +130,7 @@ public class VoteService {
 		}
 	}
 
-	private void validateOpen(Poll poll) {
+	private void validateVotingAllowed(Poll poll) {
 		if (poll.getStatus() == PollStatus.PAUSED) {
 			throw new ResponseStatusException(CONFLICT, "POLL_PAUSED");
 		}
@@ -131,6 +143,6 @@ public class VoteService {
 		}
 	}
 
-	public record VoteResult(long ballotId, long optionId) {
+public record VoteResult(long ballotId, long optionId) {
 	}
 }

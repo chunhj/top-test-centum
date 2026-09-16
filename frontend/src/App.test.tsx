@@ -1,10 +1,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+beforeEach(() => vi.stubGlobal('EventSource', class {
+  addEventListener() {}
+  close() {}
+}))
 
 function renderRoute(route: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -46,5 +50,11 @@ describe('Poll API screens', () => {
 
     await waitFor(() => expect(document.querySelector('.result-main b')?.textContent).toContain('6'))
     expect(fetch).toHaveBeenCalledWith('/api/polls/1/results')
+  })
+
+  it('opens the administrator login screen', async () => {
+    renderRoute('/admin')
+    expect(screen.getByRole('heading', { name: '관리자 입장' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '관리자 입장' })).toBeTruthy()
   })
 })

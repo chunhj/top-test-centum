@@ -30,4 +30,12 @@ public class PollOption {
 	@Column(nullable = false)
 	private int displayOrder;
 
+	PollOption(Poll poll, String name, String imageUrl, String team, int displayOrder) {
+		this.poll = poll;
+		this.name = name;
+		this.imageUrl = imageUrl;
+		this.team = team;
+		this.displayOrder = displayOrder;
+	}
+
 }

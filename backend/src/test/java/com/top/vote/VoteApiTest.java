@@ -13,6 +13,7 @@ import com.top.vote.repository.IdempotencyRequestRepository;
 import com.top.vote.repository.PollOptionCounterRepository;
 import com.top.vote.repository.VoteHistoryRepository;
 import com.top.vote.service.VoteService;
+import com.top.vote.service.VoteStreamService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -46,6 +47,7 @@ class VoteApiTest {
 	private IdempotencyRequestRepository idempotencyRequestRepository;
 	private PollOptionCounterRepository counterRepository;
 	private VoteHistoryRepository voteHistoryRepository;
+	private VoteStreamService voteStreamService;
 	private MockMvc mvc;
 
 	@BeforeEach
@@ -55,11 +57,12 @@ class VoteApiTest {
 		idempotencyRequestRepository = mock(IdempotencyRequestRepository.class);
 		counterRepository = mock(PollOptionCounterRepository.class);
 		voteHistoryRepository = mock(VoteHistoryRepository.class);
+		voteStreamService = mock(VoteStreamService.class);
 		when(idempotencyRequestRepository.claim(anyString(), anyLong(), any(UUID.class), anyString()))
 				.thenReturn(11L);
 		mvc = standaloneSetup(new VoteController(
 				new VoteService(pollRepository, ballotRepository, idempotencyRequestRepository,
-						counterRepository, voteHistoryRepository)))
+						counterRepository, voteHistoryRepository, voteStreamService)))
 				.setControllerAdvice(new ApiExceptionHandler())
 				.build();
 	}

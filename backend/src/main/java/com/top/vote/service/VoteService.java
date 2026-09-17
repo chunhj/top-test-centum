@@ -11,35 +11,32 @@ import com.top.vote.repository.BallotRepository;
 import com.top.vote.repository.IdempotencyRequestRepository;
 import com.top.vote.repository.PollOptionCounterRepository;
 import com.top.vote.repository.VoteHistoryRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.Instant;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.*;
 
 @Service
+@RequiredArgsConstructor
 public class VoteService {
 	private final PollRepository pollRepository;
 	private final BallotRepository ballotRepository;
 	private final IdempotencyRequestRepository idempotencyRequestRepository;
 	private final PollOptionCounterRepository pollOptionCounterRepository;
 	private final VoteHistoryRepository voteHistoryRepository;
-private final VoteStreamService voteStreamService;
-
- public VoteService(PollRepository pollRepository, BallotRepository ballotRepository, IdempotencyRequestRepository idempotencyRequestRepository, PollOptionCounterRepository pollOptionCounterRepository, VoteHistoryRepository voteHistoryRepository) { this(pollRepository, ballotRepository, idempotencyRequestRepository, pollOptionCounterRepository, voteHistoryRepository, null); }
-
- @Autowired public VoteService(PollRepository pollRepository, BallotRepository ballotRepository, IdempotencyRequestRepository idempotencyRequestRepository, PollOptionCounterRepository pollOptionCounterRepository, VoteHistoryRepository voteHistoryRepository, VoteStreamService voteStreamService) { this.pollRepository = pollRepository; this.ballotRepository = ballotRepository; this.idempotencyRequestRepository = idempotencyRequestRepository; this.pollOptionCounterRepository = pollOptionCounterRepository; this.voteHistoryRepository = voteHistoryRepository; this.voteStreamService = voteStreamService; }
+	private final VoteStreamService voteStreamService;
 
 	@Transactional
 	public VoteResult castVote(long pollId, Long optionId, String voterKey, UUID idempotencyKey) {
@@ -78,11 +75,14 @@ private final VoteStreamService voteStreamService;
 				.map(ballot -> changeVote(ballot, option))
 				.orElseGet(() -> createVote(poll, option, voterKey));
 		idempotencyRequestRepository.complete(requestId, voteResult.ballotId(), voteResult.optionId());
-		if (voteStreamService != null) {
 
-TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-			@Override public void afterCommit() { voteStreamService.publishAfterCommit(pollId); }
-		});
+		if (TransactionSynchronizationManager.isSynchronizationActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					voteStreamService.publishAfterCommit(pollId);
+				}
+			});
 		}
 		return voteResult;
 	}
@@ -143,6 +143,6 @@ TransactionSynchronizationManager.registerSynchronization(new TransactionSynchro
 		}
 	}
 
-public record VoteResult(long ballotId, long optionId) {
+	public record VoteResult(long ballotId, long optionId) {
 	}
 }

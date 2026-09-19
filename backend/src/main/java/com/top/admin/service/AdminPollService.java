@@ -5,6 +5,7 @@ import com.top.admin.dto.AdminPollRequest;
 import com.top.admin.dto.AdminPollResponse;
 import com.top.admin.dto.AdminPollUpdateRequest;
 import com.top.admin.repository.AdminPollQueryRepository;
+import com.top.common.security.AuthenticatedMember;
 import com.top.poll.domain.Poll;
 import com.top.poll.domain.PollStatus;
 import com.top.poll.repository.PollRepository;
@@ -12,6 +13,7 @@ import com.top.vote.repository.PollOptionCounterRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,14 +27,13 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 @RequiredArgsConstructor
 public class AdminPollService {
-	private static final long ADMIN_OWNER_ID = 1L;
 	private final PollRepository pollRepository;
 	private final AdminPollQueryRepository queryRepository;
 	private final PollOptionCounterRepository counterRepository;
 
 	@Transactional(readOnly = true)
 	public AdminPollPageResponse find(String keyword, PollStatus status, String sort, int page, int size) {
-		return AdminPollPageResponse.from(queryRepository.find(ADMIN_OWNER_ID, keyword, status, sort,
+		return AdminPollPageResponse.from(queryRepository.find(currentMemberId(), keyword, status, sort,
 				PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100))));
 	}
 
@@ -40,7 +41,7 @@ public class AdminPollService {
 	@CacheEvict(value = "popularPolls", allEntries = true)
 	public AdminPollResponse create(AdminPollRequest request) {
 		validateRange(request.startsAt(), request.endsAt());
-		Poll poll = Poll.schedule(ADMIN_OWNER_ID, request.title(), request.description(), request.pollType(),
+		Poll poll = Poll.schedule(currentMemberId(), request.title(), request.description(), request.pollType(),
 				request.maxSelections(), request.startsAt(), request.endsAt());
 		for (int index = 0; index < request.options().size(); index++) {
 			var option = request.options().get(index);
@@ -85,8 +86,16 @@ public class AdminPollService {
 	private Poll ownedPollForUpdate(long pollId) {
 		Poll poll = pollRepository.findByIdForUpdate(pollId)
 				.orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "POLL_NOT_FOUND"));
-		if (poll.getOwnerId() != ADMIN_OWNER_ID) throw new ResponseStatusException(NOT_FOUND, "POLL_NOT_FOUND");
+		if (poll.getOwnerId() != currentMemberId()) throw new ResponseStatusException(NOT_FOUND, "POLL_NOT_FOUND");
 		return poll;
+	}
+
+	private long currentMemberId() {
+		Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+		if (principal instanceof AuthenticatedMember member) {
+			return member.getId();
+		}
+		throw new IllegalStateException("Authenticated principal does not carry a member id: " + principal);
 	}
 
 	private void validateRange(Instant startsAt, Instant endsAt) {

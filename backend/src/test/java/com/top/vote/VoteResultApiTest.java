@@ -59,8 +59,13 @@ class VoteResultApiTest {
 				.andExpect(jsonPath("$.voted").value(true))
 				.andExpect(jsonPath("$.results").doesNotExist())
 				.andExpect(jsonPath("$..voteCount").doesNotExist())
-				.andExpect(jsonPath("$..percentage").doesNotExist());
+				.andExpect(jsonPath("$..percentage").doesNotExist())
+				// participantCount also leaks how many people have voted, so
+				// it must be withheld during T-30 just like the per-option
+				// counts are.
+				.andExpect(jsonPath("$.participantCount").doesNotExist());
 		verify(counterRepository, never()).findResults(1L);
+		verify(ballotRepository, never()).countByPollId(1L);
 	}
 
 	@Test

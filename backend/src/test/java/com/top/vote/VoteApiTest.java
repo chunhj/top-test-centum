@@ -72,7 +72,7 @@ class VoteApiTest {
 		PollOption option = option(3L);
 		Poll poll = poll(PollStatus.OPEN, option);
 		when(poll.getEndsAt()).thenReturn(Instant.now().plus(29, ChronoUnit.MINUTES));
-		when(pollRepository.findById(1L)).thenReturn(Optional.of(poll));
+		when(pollRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(poll));
 		Ballot saved = mock(Ballot.class);
 		when(saved.getId()).thenReturn(7L);
 		when(ballotRepository.saveAndFlush(any(Ballot.class))).thenReturn(saved);
@@ -93,7 +93,7 @@ class VoteApiTest {
 	void rejectsVoteAfterEndTime() throws Exception {
 		Poll poll = poll(PollStatus.OPEN, option(3L));
 		when(poll.getEndsAt()).thenReturn(Instant.now().minusSeconds(1));
-		when(pollRepository.findById(1L)).thenReturn(Optional.of(poll));
+		when(pollRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(poll));
 
 		mvc.perform(post("/api/polls/1/votes")
 					.requestAttr("voterKey", "a".repeat(64))
@@ -108,7 +108,7 @@ class VoteApiTest {
 	@Test
 	void rejectsOptionFromAnotherPoll() throws Exception {
 		Poll poll = poll(PollStatus.OPEN, option(2L));
-		when(pollRepository.findById(1L)).thenReturn(Optional.of(poll));
+		when(pollRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(poll));
 
 		mvc.perform(post("/api/polls/1/votes")
 					.requestAttr("voterKey", "a".repeat(64))
@@ -122,7 +122,7 @@ class VoteApiTest {
 	@Test
 	void rejectsPausedPoll() throws Exception {
 		Poll poll = poll(PollStatus.PAUSED, option(3L));
-		when(pollRepository.findById(1L)).thenReturn(Optional.of(poll));
+		when(pollRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(poll));
 
 		mvc.perform(post("/api/polls/1/votes")
 					.requestAttr("voterKey", "a".repeat(64))
@@ -137,7 +137,7 @@ class VoteApiTest {
 	void translatesDatabaseDuplicateToApiError() throws Exception {
 		PollOption option = option(3L);
 		Poll poll = poll(PollStatus.OPEN, option);
-		when(pollRepository.findById(1L)).thenReturn(Optional.of(poll));
+		when(pollRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(poll));
 		when(ballotRepository.saveAndFlush(any(Ballot.class)))
 				.thenThrow(new DataIntegrityViolationException("uq_ballot_poll_voter"));
 
@@ -155,7 +155,7 @@ class VoteApiTest {
 		UUID key = UUID.randomUUID();
 		Poll poll = poll(PollStatus.OPEN, option(3L));
 		AtomicReference<String> requestHash = new AtomicReference<>();
-		when(pollRepository.findById(1L)).thenReturn(Optional.of(poll));
+		when(pollRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(poll));
 		when(idempotencyRequestRepository.claim(anyString(), anyLong(), any(UUID.class), anyString()))
 				.thenAnswer(invocation -> {
 					requestHash.set(invocation.getArgument(3, String.class));
@@ -180,7 +180,7 @@ class VoteApiTest {
 	void rejectsSameIdempotencyKeyWithDifferentPayload() throws Exception {
 		UUID key = UUID.randomUUID();
 		Poll poll = poll(PollStatus.OPEN, option(3L));
-		when(pollRepository.findById(1L)).thenReturn(Optional.of(poll));
+		when(pollRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(poll));
 		when(idempotencyRequestRepository.claim(anyString(), anyLong(), any(UUID.class), anyString()))
 				.thenReturn(null);
 		when(idempotencyRequestRepository.find(anyString(), anyLong(), any(UUID.class)))
@@ -206,7 +206,7 @@ class VoteApiTest {
 		when(ballot.getId()).thenReturn(7L);
 		when(ballot.getSelection()).thenReturn(selection);
 		when(selection.getOption()).thenReturn(oldOption);
-		when(pollRepository.findById(1L)).thenReturn(Optional.of(poll));
+		when(pollRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(poll));
 		when(ballotRepository.findByPollIdAndVoterKey(1L, "a".repeat(64)))
 				.thenReturn(Optional.of(ballot));
 
@@ -235,7 +235,7 @@ class VoteApiTest {
 		when(ballot.getId()).thenReturn(7L);
 		when(ballot.getSelection()).thenReturn(selection);
 		when(selection.getOption()).thenReturn(option);
-		when(pollRepository.findById(1L)).thenReturn(Optional.of(poll));
+		when(pollRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(poll));
 		when(ballotRepository.findByPollIdAndVoterKey(1L, "a".repeat(64)))
 				.thenReturn(Optional.of(ballot));
 

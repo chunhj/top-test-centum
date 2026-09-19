@@ -20,6 +20,7 @@ public interface PollRepository extends JpaRepository<Poll, Long> {
 	Optional<Poll> findById(Long id);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@EntityGraph(attributePaths = "options")
 	@Query("select p from Poll p where p.id = :id")
 	Optional<Poll> findByIdForUpdate(long id);
 }

@@ -47,7 +47,14 @@ public class VoteService {
 			throw new ResponseStatusException(BAD_REQUEST, "INVALID_SELECTION_COUNT");
 		}
 
-		Poll poll = pollRepository.findById(pollId)
+		// Locks the Poll row (PESSIMISTIC_WRITE) so a concurrent admin transition()
+		// (start/pause/resume/close), which takes the same lock via
+		// PollRepository.findByIdForUpdate, cannot commit a status change while a
+		// vote is mid-flight, and this vote cannot read/act on stale status while an
+		// admin transition is mid-flight. Closes the TOCTOU window between
+		// validateVotingAllowed(poll) and the ballot write below, for both the
+		// change-vote and first-time-vote paths.
+		Poll poll = pollRepository.findByIdForUpdate(pollId)
 				.orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "POLL_NOT_FOUND"));
 		String requestHash = hashVoteRequest(optionId);
 		Long requestId = idempotencyRequestRepository.claim(voterKey, pollId, idempotencyKey, requestHash);

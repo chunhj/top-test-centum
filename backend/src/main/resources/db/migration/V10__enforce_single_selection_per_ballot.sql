@@ -1,0 +1,16 @@
+-- Enforces the "1 ballot = 1 selection" invariant at the database level.
+--
+-- Ballot.selection is mapped as a JPA @OneToOne, but the only DB constraint
+-- on ballot_selection was UNIQUE (ballot_id, option_id): nothing stopped a
+-- second row with a different option_id for the same ballot_id (a batch
+-- script, admin tool, or future code path could insert one and silently
+-- break vote counts / revote history without the application ever knowing).
+--
+-- Adding UNIQUE (ballot_id) makes "at most one selection per ballot" a
+-- constraint Postgres enforces regardless of which code path writes to the
+-- table. If any existing row already violates this (more than one
+-- ballot_selection row for the same ballot_id), this ALTER TABLE fails and
+-- the migration does not apply until that data is reconciled -- that is
+-- intentional: it surfaces a real data integrity problem instead of
+-- masking it.
+ALTER TABLE ballot_selection ADD CONSTRAINT uq_ballot_selection_ballot UNIQUE (ballot_id);

@@ -5,7 +5,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
@@ -28,11 +27,13 @@ public class SecurityConfig {
 
 	@Bean
 	UserDetailsService userDetailsService(JdbcClient jdbcClient) {
-		return username -> jdbcClient.sql("SELECT email, password_hash, role FROM member WHERE email = :username")
+		return username -> jdbcClient.sql("SELECT id, email, password_hash, role FROM member WHERE email = :username")
 				.param("username", username)
-				.query((resultSet, rowNumber) -> User.withUsername(resultSet.getString("email"))
-						.password(resultSet.getString("password_hash"))
-						.roles(resultSet.getString("role")).build())
+				.query((resultSet, rowNumber) -> new AuthenticatedMember(
+						resultSet.getLong("id"),
+						resultSet.getString("email"),
+						resultSet.getString("password_hash"),
+						resultSet.getString("role")))
 				.optional()
 				.orElseThrow(() -> new UsernameNotFoundException(username));
 	}

@@ -47,14 +47,22 @@ public class VoteService {
 			throw new ResponseStatusException(BAD_REQUEST, "INVALID_SELECTION_COUNT");
 		}
 
-		// Locks the Poll row (PESSIMISTIC_WRITE) so a concurrent admin transition()
-		// (start/pause/resume/close), which takes the same lock via
-		// PollRepository.findByIdForUpdate, cannot commit a status change while a
-		// vote is mid-flight, and this vote cannot read/act on stale status while an
-		// admin transition is mid-flight. Closes the TOCTOU window between
-		// validateVotingAllowed(poll) and the ballot write below, for both the
-		// change-vote and first-time-vote paths.
-		Poll poll = pollRepository.findByIdForUpdate(pollId)
+		// Takes a SHARED lock (PESSIMISTIC_READ / "SELECT ... FOR SHARE") on the
+		// Poll row so a concurrent admin transition() (start/pause/resume/close),
+		// which takes the EXCLUSIVE lock via PollRepository.findByIdForUpdate,
+		// cannot commit a status change while a vote is mid-flight, and this vote
+		// cannot read/act on stale status while an admin transition is mid-flight.
+		// Closes the TOCTOU window between validateVotingAllowed(poll) and the
+		// ballot write below, for both the change-vote and first-time-vote paths.
+		//
+		// Deliberately a SHARED lock, not the admin path's EXCLUSIVE one: many
+		// votes reading the same Poll row do not conflict with each other (they
+		// don't write to it), only with an admin's exclusive write. Using
+		// findByIdForUpdate() here previously forced every vote on the same poll
+		// to serialize behind a single global lock -- confirmed as the cause of
+		// Scenario B's ~5.3s p95 and Scenario C's Hikari-pool exhaustion under
+		// combined SSE + concurrent-vote load (see load-test/RESULTS.md).
+		Poll poll = pollRepository.findByIdForShare(pollId)
 				.orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "POLL_NOT_FOUND"));
 		String requestHash = hashVoteRequest(optionId);
 		Long requestId = idempotencyRequestRepository.claim(voterKey, pollId, idempotencyKey, requestHash);

@@ -1,5 +1,6 @@
 package com.top.vote;
 
+import com.top.support.AbstractPostgresIntegrationTest;
 import com.top.vote.service.VoteService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 		"spring.cache.type=none"
 })
 @EnabledIfEnvironmentVariable(named = "POSTGRES_CONCURRENCY_TEST", matches = "true")
-class VoteConcurrencyTest {
+class VoteConcurrencyTest extends AbstractPostgresIntegrationTest {
 	@Autowired
 	private VoteService voteService;
 

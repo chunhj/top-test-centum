@@ -70,6 +70,7 @@ class VoteStreamFanOutTest {
 		subscribeSilently("voter-3");
 
 		streamService.publishAfterCommit(1L);
+		streamService.flushPendingBroadcasts();
 
 		verify(voteResultService, times(1)).loadSnapshot(1L);
 		verify(voteResultService, times(3)).toResponse(org.mockito.ArgumentMatchers.any(), anyString());
@@ -80,6 +81,7 @@ class VoteStreamFanOutTest {
 		setUp(PollPhase.LIVE_VISIBLE);
 
 		streamService.publishAfterCommit(1L);
+		streamService.flushPendingBroadcasts();
 
 		verify(voteResultService, times(0)).loadSnapshot(anyLong());
 	}
@@ -91,6 +93,7 @@ class VoteStreamFanOutTest {
 		subscribeSilently("voter-2");
 
 		streamService.publishAfterCommit(1L);
+		streamService.flushPendingBroadcasts();
 
 		verify(voteResultService, times(1)).loadSnapshot(1L);
 		verify(voteResultService, times(0)).toResponse(org.mockito.ArgumentMatchers.any(), anyString());

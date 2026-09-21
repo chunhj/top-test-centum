@@ -25,13 +25,13 @@ public class AnonymousVoterFilter extends OncePerRequestFilter {
 	public static final String VOTER_KEY_ATTRIBUTE = "voterKey";
 	static final String COOKIE_NAME = "anonymous_token";
 	private static final SecureRandom RANDOM = new SecureRandom();
-	private final byte[] signingSecret;
+	private final byte[] secret;
 
 	public AnonymousVoterFilter(@Value("${anonymous.voter.secret}") String secret) {
 		if (secret.getBytes(StandardCharsets.UTF_8).length < 32) {
 			throw new IllegalArgumentException("ANONYMOUS_VOTER_SECRET must be at least 32 bytes");
 		}
-		this.signingSecret = secret.getBytes(StandardCharsets.UTF_8);
+		this.secret = secret.getBytes(StandardCharsets.UTF_8);
 	}
 
 	@Override
@@ -40,19 +40,19 @@ public class AnonymousVoterFilter extends OncePerRequestFilter {
 	}
 
 	@Override
-	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws ServletException, IOException {
-		String token = findValidToken(request);
+		String token = findToken(request);
 		if (token == null) {
-			token = generateToken();
+			token = newToken();
 			response.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie.from(COOKIE_NAME, token)
 					.httpOnly(true).secure(true).sameSite("Lax").path("/").build().toString());
 		}
-		request.setAttribute(VOTER_KEY_ATTRIBUTE, createVoterKey(token));
-		filterChain.doFilter(request, response);
+		request.setAttribute(VOTER_KEY_ATTRIBUTE, voterKey(token));
+		chain.doFilter(request, response);
 	}
 
-	private String findValidToken(HttpServletRequest request) {
+	private String findToken(HttpServletRequest request) {
 		if (request.getCookies() == null) {
 			return null;
 		}
@@ -64,19 +64,19 @@ public class AnonymousVoterFilter extends OncePerRequestFilter {
 		return null;
 	}
 
-	private String generateToken() {
-		byte[] randomBytes = new byte[32];
-		RANDOM.nextBytes(randomBytes);
-		return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+	private String newToken() {
+		byte[] bytes = new byte[32];
+		RANDOM.nextBytes(bytes);
+		return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
 	}
 
-	private String createVoterKey(String token) {
+	private String voterKey(String token) {
 		try {
 			Mac mac = Mac.getInstance("HmacSHA256");
-			mac.init(new SecretKeySpec(signingSecret, "HmacSHA256"));
+			mac.init(new SecretKeySpec(secret, "HmacSHA256"));
 			return HexFormat.of().formatHex(mac.doFinal(token.getBytes(StandardCharsets.UTF_8)));
-		} catch (GeneralSecurityException exception) {
-			throw new IllegalStateException("HMAC-SHA256 is unavailable", exception);
+		} catch (GeneralSecurityException e) {
+			throw new IllegalStateException("HMAC-SHA256 is unavailable", e);
 		}
 	}
 }

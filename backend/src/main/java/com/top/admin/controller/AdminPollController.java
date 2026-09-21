@@ -1,5 +1,6 @@
 package com.top.admin.controller;
 
+import com.top.admin.dto.AdminPollDetailResponse;
 import com.top.admin.dto.AdminPollPageResponse;
 import com.top.admin.dto.AdminPollRequest;
 import com.top.admin.dto.AdminPollResponse;
@@ -9,6 +10,7 @@ import com.top.poll.domain.PollStatus;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,6 +36,11 @@ public class AdminPollController {
 		return service.find(keyword, status, sort, page, size);
 	}
 
+	@GetMapping("/{pollId}")
+	public AdminPollDetailResponse findOne(@PathVariable long pollId) {
+		return service.findOne(pollId);
+	}
+
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
 	public AdminPollResponse create(@Valid @RequestBody AdminPollRequest request) {
@@ -48,5 +55,11 @@ public class AdminPollController {
 	@PostMapping("/{pollId}/{action:start|pause|resume|close}")
 	public AdminPollResponse transition(@PathVariable long pollId, @PathVariable String action) {
 		return service.transition(pollId, action);
+	}
+
+	@DeleteMapping("/{pollId}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void delete(@PathVariable long pollId) {
+		service.delete(pollId);
 	}
 }

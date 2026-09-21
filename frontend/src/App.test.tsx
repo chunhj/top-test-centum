@@ -24,7 +24,7 @@ describe('Poll API screens', () => {
     mockJson([{ pollId: 1, title: '오늘의 투표', type: 'SINGLE', maxSelections: 1, status: 'OPEN', startsAt: '2026-09-01T00:00:00Z', endsAt: '2026-09-30T00:00:00Z' }])
     renderRoute('/')
 
-    expect(await screen.findByText('오늘의 투표')).toBeTruthy()
+    expect((await screen.findAllByText('오늘의 투표')).length).toBeGreaterThan(0)
     expect(fetch).toHaveBeenCalledWith('/api/polls')
   })
 
@@ -48,7 +48,7 @@ describe('Poll API screens', () => {
     })))
     renderRoute('/polls/1')
 
-    await waitFor(() => expect(document.querySelector('.result-main b')?.textContent).toContain('6'))
+    await waitFor(() => expect(screen.getByText(/100% · 6표/)).toBeTruthy())
     expect(fetch).toHaveBeenCalledWith('/api/polls/1/results')
   })
 

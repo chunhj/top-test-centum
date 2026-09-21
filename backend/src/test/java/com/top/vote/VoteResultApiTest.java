@@ -48,10 +48,11 @@ class VoteResultApiTest {
 	}
 
 	@Test
-	void omitsNumbersInsideT30EvenAfterVoting() throws Exception {
+	void keepsParticipantCountVisibleButHidesOptionNumbersInsideT30() throws Exception {
 		Poll poll = poll(PollStatus.OPEN, 29);
 		when(pollRepository.findById(1L)).thenReturn(Optional.of(poll));
 		when(ballotRepository.existsByPollIdAndVoterKey(1L, VOTER_KEY)).thenReturn(true);
+		when(ballotRepository.countByPollId(1L)).thenReturn(31L);
 
 		mvc.perform(get("/api/polls/1/results").requestAttr("voterKey", VOTER_KEY))
 				.andExpect(status().isOk())
@@ -60,12 +61,9 @@ class VoteResultApiTest {
 				.andExpect(jsonPath("$.results").doesNotExist())
 				.andExpect(jsonPath("$..voteCount").doesNotExist())
 				.andExpect(jsonPath("$..percentage").doesNotExist())
-				// participantCount also leaks how many people have voted, so
-				// it must be withheld during T-30 just like the per-option
-				// counts are.
-				.andExpect(jsonPath("$.participantCount").doesNotExist());
+				.andExpect(jsonPath("$.participantCount").value(31));
 		verify(counterRepository, never()).findResults(1L);
-		verify(ballotRepository, never()).countByPollId(1L);
+		verify(ballotRepository, times(1)).countByPollId(1L);
 	}
 
 	@Test

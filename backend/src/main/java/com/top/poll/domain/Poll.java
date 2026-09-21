@@ -7,7 +7,11 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Entity
 @Table(name = "poll")
@@ -75,6 +79,43 @@ public class Poll {
 		this.startsAt = startsAt;
 		this.endsAt = endsAt;
 	}
+
+	/**
+	 * Reconciles the option list against an admin edit's requested rows, matched
+	 * by optionId. A row without an optionId is a new candidate (INSERT); an
+	 * existing optionId present in the request is updated in place (UPDATE); an
+	 * existing optionId missing from the request is removed (DELETE, via
+	 * orphanRemoval). Only allowed while the poll hasn't gone live yet, so this
+	 * never touches an option that could already carry votes.
+	 */
+	public void syncOptions(List<OptionUpsert> requestOptions) {
+		if (status != PollStatus.SCHEDULED) throw new IllegalStateException("POLL_NOT_EDITABLE");
+
+		Map<Long, PollOption> existingById = new HashMap<>();
+		for (PollOption option : options) {
+			if (option.getId() != null) existingById.put(option.getId(), option);
+		}
+
+		Set<Long> keepIds = new HashSet<>();
+		for (OptionUpsert request : requestOptions) {
+			if (request.optionId() != null) keepIds.add(request.optionId());
+		}
+		options.removeIf(option -> option.getId() != null && !keepIds.contains(option.getId()));
+
+		int order = 1;
+		for (OptionUpsert request : requestOptions) {
+			if (request.optionId() != null) {
+				PollOption existing = existingById.get(request.optionId());
+				if (existing == null) throw new IllegalStateException("POLL_OPTION_NOT_FOUND");
+				existing.update(request.name(), request.imageUrl(), request.team(), order);
+			} else {
+				addOption(request.name(), request.imageUrl(), request.team(), order);
+			}
+			order++;
+		}
+	}
+
+	public record OptionUpsert(Long optionId, String name, String imageUrl, String team) {}
 
 	public void start(Instant now) {
 		if (status != PollStatus.SCHEDULED || now.isBefore(startsAt) || !now.isBefore(endsAt)) throw new IllegalStateException("INVALID_POLL_TRANSITION");

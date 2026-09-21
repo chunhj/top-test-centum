@@ -38,4 +38,11 @@ public class PollOption {
 		this.displayOrder = displayOrder;
 	}
 
+	void update(String name, String imageUrl, String team, int displayOrder) {
+		this.name = name;
+		this.imageUrl = imageUrl;
+		this.team = team;
+		this.displayOrder = displayOrder;
+	}
+
 }

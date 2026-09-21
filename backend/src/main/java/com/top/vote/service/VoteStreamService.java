@@ -5,13 +5,16 @@ import com.top.poll.domain.PollPhase;
 import com.top.poll.repository.PollRepository;
 import com.top.vote.dto.PollResultsResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.scheduling.annotation.Async;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -24,13 +27,25 @@ public class VoteStreamService {
 	private final PollRepository pollRepository;
 	private final VoteResultService voteResultService;
 	private final ConcurrentHashMap<Long, CopyOnWriteArrayList<Subscription>> subscriptions = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap.KeySetView<Long, Boolean> pendingBroadcasts = ConcurrentHashMap.newKeySet();
 	/** Last phase broadcast to a poll's subscribers, used by {@link #checkPhaseTransitions()} to detect a crossing. */
 	private final ConcurrentHashMap<Long, PollPhase> lastKnownPhase = new ConcurrentHashMap<>();
+
+	@Autowired
+	void registerMetrics(MeterRegistry meterRegistry) {
+		Gauge.builder("top.sse.connections.active", this, VoteStreamService::activeConnectionCount)
+				.description("Current live SSE subscriptions")
+				.register(meterRegistry);
+	}
+
+	double activeConnectionCount() {
+		return subscriptions.values().stream().mapToInt(CopyOnWriteArrayList::size).sum();
+	}
 
 	public SseEmitter subscribe(long pollId, String voterKey) {
 		Poll poll = pollRepository.findById(pollId).orElseThrow();
 		SseEmitter emitter = new SseEmitter(30 * 60 * 1000L);
-		Subscription subscription = new Subscription(emitter, voterKey);
+		Subscription subscription = new Subscription(emitter, voterKey, System.nanoTime());
 		subscriptions.computeIfAbsent(pollId, ignored -> new CopyOnWriteArrayList<>()).add(subscription);
 
 		Runnable remove = () -> subscriptions.getOrDefault(pollId, new CopyOnWriteArrayList<>()).remove(subscription);
@@ -57,18 +72,26 @@ public class VoteStreamService {
 
 	/**
 	 * Notifies every subscriber of {@code pollId} about the vote that was just
-	 * committed. Runs off the request thread ({@code @Async}) so a vote's HTTP
-	 * response never waits on the fan-out to every subscriber.
+	 * committed. Only marks the poll dirty: a short scheduled sweep coalesces a
+	 * burst of votes into one latest-result broadcast, so the HTTP response never
+	 * waits for fan-out and the executor cannot be flooded with redundant work.
 	 */
-	@Async("sseFanOutExecutor")
 	public void publishAfterCommit(long pollId) {
-		PollPhase phase = currentPhaseOrNull(pollId);
-		if (phase != null) {
-			// Keeps checkPhaseTransitions()'s baseline in sync so it does not
-			// re-broadcast a phase change that a vote already delivered.
-			lastKnownPhase.put(pollId, phase);
+		pendingBroadcasts.add(pollId);
+	}
+
+	@Scheduled(fixedDelay = 100L)
+	public void flushPendingBroadcasts() {
+		for (Long pollId : pendingBroadcasts) {
+			if (!pendingBroadcasts.remove(pollId)) {
+				continue;
+			}
+			PollPhase phase = currentPhaseOrNull(pollId);
+			if (phase != null) {
+				lastKnownPhase.put(pollId, phase);
+			}
+			broadcast(pollId);
 		}
-		broadcast(pollId);
 	}
 
 	/**
@@ -95,6 +118,18 @@ public class VoteStreamService {
 				subscriptions.remove(pollId, subscribers);
 				lastKnownPhase.remove(pollId);
 				continue;
+			}
+			for (Subscription subscription : subscribers) {
+				if (System.nanoTime() - subscription.connectedAtNanos()
+						< TimeUnit.MILLISECONDS.toNanos(PHASE_CHECK_INTERVAL_MS)) {
+					continue;
+				}
+				try {
+					subscription.emitter().send(SseEmitter.event().comment("keepalive"));
+				} catch (IOException exception) {
+					subscription.emitter().completeWithError(exception);
+					subscribers.remove(subscription);
+				}
 			}
 
 			PollPhase phase = currentPhaseOrNull(pollId);
@@ -149,7 +184,7 @@ public class VoteStreamService {
 		emitter.send(SseEmitter.event().name("phase-changed").data(new PhaseChanged(phase)));
 	}
 
-	private record Subscription(SseEmitter emitter, String voterKey) {
+	private record Subscription(SseEmitter emitter, String voterKey, long connectedAtNanos) {
 	}
 
 	private record PhaseChanged(PollPhase phase) {

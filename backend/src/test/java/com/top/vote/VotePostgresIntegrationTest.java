@@ -146,7 +146,7 @@ class VotePostgresIntegrationTest {
 				HttpRequest.newBuilder(uri("/api/polls/" + pollId + "/results")).GET().build(),
 				HttpResponse.BodyHandlers.ofString()).body();
 		assertEquals("RESULTS_HIDDEN", hidden.phase().name());
-		assertFalse(hiddenJson.contains("participantCount"));
+		assertTrue(hiddenJson.contains("\"participantCount\":1"));
 		assertFalse(hiddenJson.contains("voteCount"));
 
 		jdbc.sql("UPDATE poll SET ends_at=clock_timestamp() - interval '1 second' WHERE id=:id")
@@ -178,7 +178,7 @@ class VotePostgresIntegrationTest {
 	}
 
 	@Test
-	void emitsCommittedVoteAndSendsNoNumbersForT30Sse() throws Exception {
+	void emitsCommittedVoteAndSendsNoOptionCountsForT30Sse() throws Exception {
 		HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 		String token = Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[32]);
 		String cookie = "anonymous_token=" + token;
@@ -213,7 +213,6 @@ class VotePostgresIntegrationTest {
 			assertTrue(hiddenEvent.contains("event:phase-changed"));
 			assertTrue(hiddenEvent.contains("RESULTS_HIDDEN"));
 			assertFalse(hiddenEvent.contains("voteCount"));
-			assertFalse(hiddenEvent.contains("participantCount"));
 		}
 	}
 

@@ -7,3 +7,11 @@
 *.md
 !README.md
 !read.md
+.env
+.env.*
+!.env.example
+.gradle-user/
+.idea/
+.test-runtime/
+*.log
+load-test/results/

@@ -30,7 +30,7 @@ public class VoteResultService {
 		// One lookup gives both "has voted" and the viewer's own selection.
 		Long myOptionId = ballotRepository.findSelectedOptionId(pollId, voterKey).orElse(null);
 		boolean hasVoted = myOptionId != null;
-		var optionResults = phase == PollPhase.CLOSED || phase == PollPhase.LIVE_VISIBLE && hasVoted
+		var optionResults = canShowOptionResults(phase, hasVoted)
 				? optionResults(pollId)
 				: null;
 		Long participantCount = ballotRepository.countByPollId(pollId);
@@ -51,7 +51,7 @@ public class VoteResultService {
 				.orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "POLL_NOT_FOUND"));
 		PollPhase phase = PollPhase.at(poll, Instant.now());
 		long participantCount = ballotRepository.countByPollId(pollId);
-		var optionResults = phase == PollPhase.CLOSED || phase == PollPhase.LIVE_VISIBLE
+		var optionResults = canShowOptionResults(phase, true)
 				? optionResults(pollId)
 				: null;
 		return new ResultSnapshot(pollId, phase, participantCount, optionResults);
@@ -64,11 +64,13 @@ public class VoteResultService {
 	public PollResultsResponse toResponse(ResultSnapshot snapshot, String voterKey) {
 		Long myOptionId = ballotRepository.findSelectedOptionId(snapshot.pollId(), voterKey).orElse(null);
 		boolean hasVoted = myOptionId != null;
-		boolean showResults = snapshot.phase() == PollPhase.CLOSED
-				|| snapshot.phase() == PollPhase.LIVE_VISIBLE && hasVoted;
 		Long participantCount = snapshot.participantCount();
 		return new PollResultsResponse(snapshot.pollId(), snapshot.phase(), hasVoted, participantCount,
-				showResults ? snapshot.optionResults() : null, myOptionId);
+				canShowOptionResults(snapshot.phase(), hasVoted) ? snapshot.optionResults() : null, myOptionId);
+	}
+
+	private boolean canShowOptionResults(PollPhase phase, boolean hasVoted) {
+		return phase == PollPhase.CLOSED || phase == PollPhase.LIVE_VISIBLE && hasVoted;
 	}
 
 	private java.util.List<PollResultsResponse.OptionResult> optionResults(long pollId) {

@@ -83,6 +83,18 @@ class AdminPollOwnershipTest {
 	}
 
 	@Test
+	void rejectsReadingAnotherMembersPoll() {
+		authenticateAs(42L);
+		Poll othersPoll = Poll.schedule(99L, "다른 관리자의 투표", null, "SINGLE", 1,
+				Instant.now().minusSeconds(60), Instant.now().plusSeconds(600));
+		when(pollRepository.findById(1L)).thenReturn(Optional.of(othersPoll));
+
+		ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+				() -> service.findOne(1L));
+		assertEquals(NOT_FOUND, exception.getStatusCode());
+	}
+
+	@Test
 	void allowsTransitionOnOwnPoll() {
 		authenticateAs(42L);
 		Poll ownPoll = Poll.schedule(42L, "내 투표", null, "SINGLE", 1,

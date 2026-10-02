@@ -80,8 +80,7 @@ public class AdminPollService {
 	public AdminPollDetailResponse findOne(long pollId) {
 		Poll poll = pollRepository.findById(pollId)
 				.orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "POLL_NOT_FOUND"));
-		if (poll.getOwnerId() != currentMemberId()) throw new ResponseStatusException(NOT_FOUND, "POLL_NOT_FOUND");
-		return AdminPollDetailResponse.from(poll);
+		return AdminPollDetailResponse.from(requireOwner(poll));
 	}
 
 	@Transactional
@@ -119,6 +118,10 @@ public class AdminPollService {
 	private Poll ownedPollForUpdate(long pollId) {
 		Poll poll = pollRepository.findByIdForUpdate(pollId)
 				.orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "POLL_NOT_FOUND"));
+		return requireOwner(poll);
+	}
+
+	private Poll requireOwner(Poll poll) {
 		if (poll.getOwnerId() != currentMemberId()) throw new ResponseStatusException(NOT_FOUND, "POLL_NOT_FOUND");
 		return poll;
 	}

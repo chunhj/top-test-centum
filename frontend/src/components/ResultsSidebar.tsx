@@ -2,10 +2,11 @@ import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { tokens } from '../theme'
-import type { PollOption, PollResults } from '../pollApi'
+import type { PollOption, PollResults } from '../api/pollApi'
+import { joinResultsWithOptions } from '../lib/results'
 
 export function ResultsSidebar({ options, data }: { options: PollOption[]; data?: PollResults }) {
-  const rows = data?.results?.map((result) => ({ ...result, option: options.find((option) => option.optionId === result.optionId)! })) ?? []
+  const rows = joinResultsWithOptions(data?.results, options)
   const hidden = data?.phase === 'RESULTS_HIDDEN'
 
   return (
@@ -65,7 +66,7 @@ export function ResultsSidebar({ options, data }: { options: PollOption[]; data?
                     height: 22,
                     borderRadius: '6px',
                     overflow: 'hidden',
-                    backgroundImage: 'repeating-linear-gradient(135deg, #EFEFEA 0 6px, #F7F7F3 6px 12px)',
+                    backgroundImage: `repeating-linear-gradient(135deg, ${tokens.color.placeholderStripe} 0 6px, ${tokens.color.placeholderStripeAlt} 6px 12px)`,
                   }}
                 >
                   {option.imageUrl && (

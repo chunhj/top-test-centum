@@ -1,0 +1,9 @@
+[Unit]
+Description=Renew TOP Let's Encrypt certificate
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker run --rm -v /etc/letsencrypt:/etc/letsencrypt -v /var/www/certbot:/var/www/certbot certbot/certbot:latest renew --quiet
+ExecStartPost=/usr/bin/systemctl reload nginx

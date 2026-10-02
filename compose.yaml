@@ -16,6 +16,8 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       SPRING_DATA_REDIS_HOST: redis
       ANONYMOUS_VOTER_SECRET: ${ANONYMOUS_VOTER_SECRET:?set ANONYMOUS_VOTER_SECRET in .env}
+      # Secure voter cookie; keep true behind HTTPS. Set false in .env only for plain-HTTP LAN testing.
+      ANONYMOUS_COOKIE_SECURE: ${ANONYMOUS_COOKIE_SECURE:-true}
       ADMIN_SEED_PASSWORD: ${ADMIN_SEED_PASSWORD:?set ADMIN_SEED_PASSWORD in .env}
     depends_on:
       postgres:

@@ -6,7 +6,10 @@ import com.top.poll.domain.Poll;
 import com.top.poll.domain.PollOption;
 import com.top.poll.domain.PollStatus;
 import com.top.poll.repository.PollRepository;
+import com.top.poll.service.PollParticipantService;
 import com.top.poll.service.PollService;
+import com.top.vote.repository.BallotRepository;
+import com.top.vote.repository.PollParticipantCount;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
@@ -24,12 +27,14 @@ import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standal
 
 class PollApiTest {
 	private PollRepository repository;
+	private BallotRepository ballotRepository;
 	private MockMvc mvc;
 
 	@BeforeEach
 	void setUp() {
 		repository = mock(PollRepository.class);
-		mvc = standaloneSetup(new PollController(new PollService(repository)))
+		ballotRepository = mock(BallotRepository.class);
+		mvc = standaloneSetup(new PollController(new PollService(repository), new PollParticipantService(ballotRepository)))
 				.setControllerAdvice(new ApiExceptionHandler())
 				.build();
 	}
@@ -38,12 +43,25 @@ class PollApiTest {
 	void returnsOpenPolls() throws Exception {
 		Poll poll = poll(1L);
 		when(repository.findAllByStatusOrderByCreatedAtDesc(PollStatus.OPEN)).thenReturn(List.of(poll));
+		when(ballotRepository.countParticipantsByPollIds(List.of(1L))).thenReturn(List.of(new PollParticipantCount(1L, 7L)));
 
 		mvc.perform(get("/api/polls"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$[0].pollId").value(1))
 				.andExpect(jsonPath("$[0].title").value("오늘의 투표"))
-				.andExpect(jsonPath("$[0].status").value("OPEN"));
+				.andExpect(jsonPath("$[0].status").value("OPEN"))
+				.andExpect(jsonPath("$[0].participantCount").value(7));
+	}
+
+	@Test
+	void reportsZeroParticipantsForPollsWithoutBallots() throws Exception {
+		Poll poll = poll(1L);
+		when(repository.findAllByStatusOrderByCreatedAtDesc(PollStatus.OPEN)).thenReturn(List.of(poll));
+		when(ballotRepository.countParticipantsByPollIds(List.of(1L))).thenReturn(List.of());
+
+		mvc.perform(get("/api/polls"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].participantCount").value(0));
 	}
 
 	@Test

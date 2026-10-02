@@ -97,6 +97,21 @@ class VotePostgresIntegrationTest {
 	}
 
 	@Test
+	void adminAuthenticationFailureDoesNotTriggerBrowserLoginDialog() throws Exception {
+		HttpClient client = HttpClient.newHttpClient();
+		HttpResponse<String> rejected = client.send(HttpRequest.newBuilder(uri("/api/admin/polls"))
+				.header("Authorization", "Basic " + Base64.getEncoder().encodeToString("owner:wrong".getBytes(StandardCharsets.UTF_8)))
+				.GET().build(), HttpResponse.BodyHandlers.ofString());
+		assertEquals(401, rejected.statusCode());
+		assertTrue(rejected.headers().firstValue("WWW-Authenticate").isEmpty());
+
+		HttpResponse<String> accepted = client.send(HttpRequest.newBuilder(uri("/api/admin/polls"))
+				.header("Authorization", "Basic " + Base64.getEncoder().encodeToString("owner:test".getBytes(StandardCharsets.UTF_8)))
+				.GET().build(), HttpResponse.BodyHandlers.ofString());
+		assertEquals(200, accepted.statusCode());
+	}
+
+	@Test
 	void preservesVoteIntegrityAcrossDuplicateIdempotencyRevoteAndRollback() throws Exception {
 		String voter = voter(1);
 		UUID firstKey = UUID.randomUUID();

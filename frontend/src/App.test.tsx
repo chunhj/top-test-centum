@@ -21,7 +21,7 @@ function mockJson(data: unknown) {
 
 describe('Poll API screens', () => {
   it('renders polls returned by the list API', async () => {
-    mockJson([{ pollId: 1, title: '오늘의 투표', type: 'SINGLE', maxSelections: 1, status: 'OPEN', startsAt: '2026-09-01T00:00:00Z', endsAt: '2026-09-30T00:00:00Z' }])
+    mockJson([{ pollId: 1, title: '오늘의 투표', type: 'SINGLE', maxSelections: 1, status: 'OPEN', startsAt: '2026-09-01T00:00:00Z', endsAt: '2026-09-30T00:00:00Z', participantCount: 0 }])
     renderRoute('/')
 
     expect((await screen.findAllByText('오늘의 투표')).length).toBeGreaterThan(0)
@@ -54,7 +54,7 @@ describe('Poll API screens', () => {
 
   it('opens the administrator login screen', async () => {
     renderRoute('/admin')
-    expect(screen.getByRole('heading', { name: '관리자 입장' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: '관리자 입장' }, { timeout: 5000 })).toBeTruthy()
     expect(screen.getByRole('button', { name: '관리자 입장' })).toBeTruthy()
   })
 })

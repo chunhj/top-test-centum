@@ -3,12 +3,13 @@ import Chip from '@mui/material/Chip'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { tokens } from '../theme'
-import type { PollOption, PollResults } from '../pollApi'
+import type { PollOption, PollResults } from '../api/pollApi'
+import { joinResultsWithOptions } from '../lib/results'
 
 const RANK_LABEL = (index: number) => (index === 0 ? '🏆 1위' : `${index + 1}위`)
 
 export function RankingsPanel({ options, data }: { options: PollOption[]; data?: PollResults }) {
-  const rows = data?.results?.map((result) => ({ ...result, option: options.find((option) => option.optionId === result.optionId)! })) ?? []
+  const rows = joinResultsWithOptions(data?.results, options)
   const hidden = data?.phase === 'RESULTS_HIDDEN'
 
   return (
@@ -54,8 +55,8 @@ export function RankingsPanel({ options, data }: { options: PollOption[]; data?:
                 gap: '14px',
                 padding: '16px',
                 borderRadius: `${tokens.radius.md}px`,
-                border: `1px solid ${index === 0 ? '#C7E0D8' : tokens.color.border}`,
-                background: index === 0 ? '#F3F8F6' : tokens.color.surface,
+                border: `1px solid ${index === 0 ? tokens.color.highlightBorder : tokens.color.border}`,
+                background: index === 0 ? tokens.color.highlightBg : tokens.color.surface,
               }}
             >
               <Box
@@ -65,7 +66,7 @@ export function RankingsPanel({ options, data }: { options: PollOption[]; data?:
                   height: 86,
                   borderRadius: '8px',
                   overflow: 'hidden',
-                  backgroundImage: 'repeating-linear-gradient(135deg, #EFEFEA 0 8px, #F7F7F3 8px 16px)',
+                  backgroundImage: `repeating-linear-gradient(135deg, ${tokens.color.placeholderStripe} 0 8px, ${tokens.color.placeholderStripeAlt} 8px 16px)`,
                 }}
               >
                 {option.imageUrl && (

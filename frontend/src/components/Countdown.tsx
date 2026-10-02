@@ -4,7 +4,7 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { tokens } from '../theme'
 
-export function useCountdownParts(endsAt: string) {
+function useCountdownParts(endsAt: string) {
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
@@ -18,12 +18,6 @@ export function useCountdownParts(endsAt: string) {
     ss: pad(seconds % 60),
     seconds,
   }
-}
-
-/** Plain "HH : MM : SS" text, kept for callers that just need the value inline. */
-export function Countdown({ endsAt }: { endsAt: string }) {
-  const { hh, mm, ss } = useCountdownParts(endsAt)
-  return <>{[hh, mm, ss].map((part) => part.padStart(2, '0')).join(' : ')}</>
 }
 
 const UNIT_LABEL = { hh: '시간', mm: '분', ss: '초' } as const

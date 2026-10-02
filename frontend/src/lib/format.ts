@@ -1,7 +1,7 @@
-import type { PollStatus } from '../pollApi'
+import type { PollStatus } from '../api/pollApi'
 
 export const statusLabel: Record<PollStatus, string> = {
-  SCHEDULED: '시작 예정', OPEN: '진행 중', PAUSED: '일시정지', CLOSED: '마감',
+  SCHEDULED: '시작 예정', OPEN: '진행 중', PAUSED: '일시정지', CLOSED: '종료됨',
 }
 
 export const statusTone: Record<PollStatus, { background: string; color: string }> = {

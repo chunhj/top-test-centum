@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AnonymousVoterFilterTest {
-	private final AnonymousVoterFilter filter = new AnonymousVoterFilter("0123456789abcdef0123456789abcdef");
+	private final AnonymousVoterFilter filter = new AnonymousVoterFilter("0123456789abcdef0123456789abcdef", true);
 
 	@Test
 	void issuesSecureCookieAndDerivesStableNonRawVoterKey() throws Exception {
@@ -36,5 +36,17 @@ class AnonymousVoterFilterTest {
 
 		assertThat(nextResponse.getHeader("Set-Cookie")).isNull();
 		assertThat(nextVoterKey.get()).isEqualTo(firstVoterKey.get());
+	}
+
+	@Test
+	void omitsSecureFlagWhenDisabledForPlainHttpTesting() throws Exception {
+		AnonymousVoterFilter httpFilter = new AnonymousVoterFilter("0123456789abcdef0123456789abcdef", false);
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		httpFilter.doFilter(new MockHttpServletRequest("GET", "/api/polls"), response, (request, ignored) -> { });
+
+		String setCookie = response.getHeader("Set-Cookie");
+		assertThat(setCookie).contains("HttpOnly", "SameSite=Lax", "Path=/");
+		assertThat(setCookie).doesNotContain("Secure");
 	}
 }

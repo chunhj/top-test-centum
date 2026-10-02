@@ -29,6 +29,15 @@ export const tokens = {
     heroBg: '#111417',
     heroBgDeep: '#0B0D0E',
     countdownDigit: '#A9E2D4',
+    // Highlighted card: the viewer's selected candidate and the #1 ranking card.
+    highlightBorder: '#C7E0D8',
+    highlightBg: '#F3F8F6',
+    // Destructive action buttons (poll delete).
+    dangerBg: '#C62828',
+    dangerBgHover: '#9F1C1C',
+    // Diagonal stripes shown behind / instead of candidate images.
+    placeholderStripe: '#EFEFEA',
+    placeholderStripeAlt: '#F7F7F3',
   },
   radius: { sm: 8, md: 12, pill: 999 },
   fontFamily: {

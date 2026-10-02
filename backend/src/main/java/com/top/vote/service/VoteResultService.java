@@ -27,12 +27,14 @@ public class VoteResultService {
 		Poll poll = pollRepository.findById(pollId)
 				.orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "POLL_NOT_FOUND"));
 		PollPhase phase = PollPhase.at(poll, Instant.now());
-		boolean hasVoted = ballotRepository.existsByPollIdAndVoterKey(pollId, voterKey);
+		// One lookup gives both "has voted" and the viewer's own selection.
+		Long myOptionId = ballotRepository.findSelectedOptionId(pollId, voterKey).orElse(null);
+		boolean hasVoted = myOptionId != null;
 		var optionResults = phase == PollPhase.CLOSED || phase == PollPhase.LIVE_VISIBLE && hasVoted
 				? optionResults(pollId)
 				: null;
 		Long participantCount = ballotRepository.countByPollId(pollId);
-		return new PollResultsResponse(pollId, phase, hasVoted, participantCount, optionResults);
+		return new PollResultsResponse(pollId, phase, hasVoted, participantCount, optionResults, myOptionId);
 	}
 
 	/**
@@ -60,12 +62,13 @@ public class VoteResultService {
 	 * the "have they voted" check is per-viewer; everything else is reused.
 	 */
 	public PollResultsResponse toResponse(ResultSnapshot snapshot, String voterKey) {
-		boolean hasVoted = ballotRepository.existsByPollIdAndVoterKey(snapshot.pollId(), voterKey);
+		Long myOptionId = ballotRepository.findSelectedOptionId(snapshot.pollId(), voterKey).orElse(null);
+		boolean hasVoted = myOptionId != null;
 		boolean showResults = snapshot.phase() == PollPhase.CLOSED
 				|| snapshot.phase() == PollPhase.LIVE_VISIBLE && hasVoted;
 		Long participantCount = snapshot.participantCount();
 		return new PollResultsResponse(snapshot.pollId(), snapshot.phase(), hasVoted, participantCount,
-				showResults ? snapshot.optionResults() : null);
+				showResults ? snapshot.optionResults() : null, myOptionId);
 	}
 
 	private java.util.List<PollResultsResponse.OptionResult> optionResults(long pollId) {

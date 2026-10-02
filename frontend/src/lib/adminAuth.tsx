@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
-import type { AdminCredentials } from '../pollApi'
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import type { AdminCredentials } from '../api/adminApi'
 
 const STORAGE_KEY = 'admin-credentials'
 
@@ -27,25 +27,29 @@ const AdminAuthContext = createContext<AdminAuthContextValue | undefined>(undefi
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [credentials, setCredentials] = useState<AdminCredentials | undefined>(readStoredCredentials)
 
-  const login = (next: AdminCredentials) => {
+  const login = useCallback((next: AdminCredentials) => {
     setCredentials(next)
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
     } catch {
       // ignore storage failures (private browsing, quota, etc.) — login still works for this tab
     }
-  }
+  }, [])
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setCredentials(undefined)
     try {
       sessionStorage.removeItem(STORAGE_KEY)
     } catch {
       // ignore
     }
-  }
+  }, [])
 
-  return <AdminAuthContext.Provider value={{ credentials, login, logout }}>{children}</AdminAuthContext.Provider>
+  // Stable value: consumers only re-render when credentials change, and effects that list
+  // logout as a dependency don't re-run on every provider render.
+  const value = useMemo(() => ({ credentials, login, logout }), [credentials, login, logout])
+
+  return <AdminAuthContext.Provider value={value}>{children}</AdminAuthContext.Provider>
 }
 
 export function useAdminAuth() {

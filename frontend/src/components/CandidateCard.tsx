@@ -2,10 +2,10 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Typography from '@mui/material/Typography'
 import { tokens } from '../theme'
-import type { PollOption } from '../pollApi'
+import type { PollOption } from '../api/pollApi'
 
 export function CandidateCard({ option, rank, selected, disabled, onVote }: {
-  option: PollOption; rank: number; selected: boolean; disabled: boolean; onVote: () => void
+  option: PollOption; rank?: number; selected: boolean; disabled: boolean; onVote: () => void
 }) {
   return (
     <Box
@@ -15,8 +15,8 @@ export function CandidateCard({ option, rank, selected, disabled, onVote }: {
         flexDirection: 'column',
         padding: '8px 8px 10px',
         borderRadius: `${tokens.radius.md}px`,
-        border: `1px solid ${selected ? '#C7E0D8' : tokens.color.border}`,
-        background: selected ? '#F3F8F6' : tokens.color.surface,
+        border: `1px solid ${selected ? tokens.color.highlightBorder : tokens.color.border}`,
+        background: selected ? tokens.color.highlightBg : tokens.color.surface,
         transition: 'transform 0.18s ease, box-shadow 0.18s ease',
         '&:hover': {
           transform: 'translateY(-4px)',
@@ -31,7 +31,7 @@ export function CandidateCard({ option, rank, selected, disabled, onVote }: {
           borderRadius: `${tokens.radius.sm + 1}px`,
           overflow: 'hidden',
           backgroundImage:
-            'repeating-linear-gradient(135deg, #EFEFEA 0 8px, #F7F7F3 8px 16px)',
+            `repeating-linear-gradient(135deg, ${tokens.color.placeholderStripe} 0 8px, ${tokens.color.placeholderStripeAlt} 8px 16px)`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -44,30 +44,33 @@ export function CandidateCard({ option, rank, selected, disabled, onVote }: {
             {option.name.charAt(0)}
           </Typography>
         )}
-        <Box
-          sx={{
-            position: 'absolute',
-            top: 7,
-            left: 7,
-            width: 22,
-            height: 22,
-            borderRadius: '6px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontFamily: tokens.fontFamily.display,
-            fontSize: 11,
-            fontWeight: 700,
-            color: '#FFFFFF',
-            background:
-              rank === 1 ? '#D4AF37' // gold
-              : rank === 2 ? '#A7A9AC' // silver
-              : rank === 3 ? '#CD7F32' // bronze
-              : 'rgba(20,23,26,.62)',
-          }}
-        >
-          {rank}
-        </Box>
+        {/* Rank badge is omitted when the page decides ranks must not be shown. */}
+        {rank !== undefined && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 7,
+              left: 7,
+              width: 22,
+              height: 22,
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: tokens.fontFamily.display,
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#FFFFFF',
+              background:
+                rank === 1 ? '#D4AF37' // gold
+                : rank === 2 ? '#A7A9AC' // silver
+                : rank === 3 ? '#CD7F32' // bronze
+                : 'rgba(20,23,26,.62)',
+            }}
+          >
+            {rank}
+          </Box>
+        )}
         {selected && (
           <Box
             sx={{

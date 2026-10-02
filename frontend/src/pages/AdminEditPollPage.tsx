@@ -1,12 +1,14 @@
-import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Box from '@mui/material/Box'
-import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-import { fetchAdminPoll, updateAdminPoll, type AdminPollUpdateInput } from '../pollApi'
+import { fetchAdminPoll, updateAdminPoll, type AdminPollUpdateInput } from '../api/adminApi'
 import { AdminPollForm } from '../components/AdminPollForm'
 import { PageStatus } from '../components/PageStatus'
+import { BackLink } from '../components/BackLink'
 import { useAdminAuth } from '../lib/adminAuth'
-import { tokens } from '../theme'
+import { useAdminAuthFailure } from '../hooks/useAdminAuthFailure'
+import { queryKeys } from '../lib/queryKeys'
+import { toAdminPollFormValues, toAdminPollUpdateInput } from '../lib/adminPollInput'
 
 export function AdminEditPollPage() {
   const { pollId = '' } = useParams()
@@ -15,17 +17,23 @@ export function AdminEditPollPage() {
   const { credentials } = useAdminAuth()
 
   const pollQuery = useQuery({
-    queryKey: ['admin-poll', pollId],
+    queryKey: queryKeys.adminPoll(pollId),
     queryFn: () => fetchAdminPoll(credentials!, Number(pollId)),
     enabled: Boolean(credentials) && Boolean(pollId),
   })
 
+  // Rejected credentials are dropped so the header and this page fall back to the logged-out state.
+  const handleAuthError = useAdminAuthFailure(pollQuery.error)
+
   const update = useMutation({
     mutationFn: (input: AdminPollUpdateInput) => updateAdminPoll(credentials!, Number(pollId), input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-polls'] })
-      queryClient.invalidateQueries({ queryKey: ['admin-poll', pollId] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminPollsAll() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminPoll(pollId) })
       navigate('/admin')
+    },
+    onError: (error) => {
+      handleAuthError(error)
     },
   })
 
@@ -39,62 +47,19 @@ export function AdminEditPollPage() {
 
   return (
     <Box component="main" sx={{ maxWidth: 900, margin: '0 auto', padding: '16px 22px 60px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <Box
-        component={RouterLink}
-        to="/admin"
-        sx={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '6px',
-          padding: '8px 12px 8px 10px',
-          marginLeft: '-10px',
-          borderRadius: `${tokens.radius.sm}px`,
-          fontSize: 13,
-          fontWeight: 600,
-          color: tokens.color.textSecondary,
-          textDecoration: 'none',
-          width: 'fit-content',
-          '&:hover': { background: tokens.color.surfaceMuted, color: tokens.color.textPrimary },
-        }}
-      >
-        <ArrowBackIcon sx={{ fontSize: 15 }} />
-        관리자 목록으로
-      </Box>
+      <BackLink to="/admin">관리자 목록으로</BackLink>
 
       {pollQuery.isPending ? (
         <PageStatus>투표 정보를 불러오는 중입니다.</PageStatus>
       ) : pollQuery.isError ? (
-        <PageStatus>{(pollQuery.error as Error).message}</PageStatus>
+        <PageStatus>{pollQuery.error.message}</PageStatus>
       ) : (
         <AdminPollForm
           mode="edit"
           pending={update.isPending}
-          error={update.isError ? (update.error as Error).message : undefined}
-          initial={{
-            title: pollQuery.data.title,
-            startsAt: pollQuery.data.startsAt,
-            endsAt: pollQuery.data.endsAt,
-            options: pollQuery.data.options.map((option) => ({
-              optionId: option.optionId,
-              name: option.name,
-              team: option.team ?? '',
-              imageUrl: option.imageUrl ?? '',
-            })),
-          }}
-          onSubmit={(values) =>
-            update.mutate({
-              title: values.title,
-              description: '',
-              startsAt: values.startsAt,
-              endsAt: values.endsAt,
-              options: values.options.map((option) => ({
-                optionId: option.optionId,
-                name: option.name,
-                team: option.team || undefined,
-                imageUrl: option.imageUrl || undefined,
-              })),
-            })
-          }
+          error={update.isError ? update.error.message : undefined}
+          initial={toAdminPollFormValues(pollQuery.data)}
+          onSubmit={(values) => update.mutate(toAdminPollUpdateInput(values))}
         />
       )}
     </Box>

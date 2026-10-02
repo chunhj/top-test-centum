@@ -50,7 +50,10 @@ public class VoteStreamService {
 
 		Runnable remove = () -> subscriptions.getOrDefault(pollId, new CopyOnWriteArrayList<>()).remove(subscription);
 		emitter.onCompletion(remove);
-		emitter.onTimeout(remove);
+		emitter.onTimeout(() -> {
+			remove.run();
+			emitter.complete();
+		});
 		emitter.onError(error -> remove.run());
 
 		PollPhase phase = PollPhase.at(poll, Instant.now());

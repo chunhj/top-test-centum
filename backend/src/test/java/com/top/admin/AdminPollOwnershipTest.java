@@ -6,6 +6,7 @@ import com.top.common.security.AuthenticatedMember;
 import com.top.poll.domain.Poll;
 import com.top.poll.domain.PollStatus;
 import com.top.poll.repository.PollRepository;
+import com.top.vote.repository.BallotRepository;
 import com.top.vote.repository.PollOptionCounterRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,6 +43,7 @@ class AdminPollOwnershipTest {
 	private PollRepository pollRepository;
 	private AdminPollQueryRepository queryRepository;
 	private PollOptionCounterRepository counterRepository;
+	private BallotRepository ballotRepository;
 	private AdminPollService service;
 
 	@BeforeEach
@@ -49,7 +51,8 @@ class AdminPollOwnershipTest {
 		pollRepository = mock(PollRepository.class);
 		queryRepository = mock(AdminPollQueryRepository.class);
 		counterRepository = mock(PollOptionCounterRepository.class);
-		service = new AdminPollService(pollRepository, queryRepository, counterRepository);
+		ballotRepository = mock(BallotRepository.class);
+		service = new AdminPollService(pollRepository, queryRepository, counterRepository, ballotRepository);
 		when(queryRepository.find(anyLong(), any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
 	}
 

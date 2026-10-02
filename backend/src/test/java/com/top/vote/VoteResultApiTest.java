@@ -51,7 +51,7 @@ class VoteResultApiTest {
 	void keepsParticipantCountVisibleButHidesOptionNumbersInsideT30() throws Exception {
 		Poll poll = poll(PollStatus.OPEN, 29);
 		when(pollRepository.findById(1L)).thenReturn(Optional.of(poll));
-		when(ballotRepository.existsByPollIdAndVoterKey(1L, VOTER_KEY)).thenReturn(true);
+		when(ballotRepository.findSelectedOptionId(1L, VOTER_KEY)).thenReturn(Optional.of(3L));
 		when(ballotRepository.countByPollId(1L)).thenReturn(31L);
 
 		mvc.perform(get("/api/polls/1/results").requestAttr("voterKey", VOTER_KEY))
@@ -61,7 +61,9 @@ class VoteResultApiTest {
 				.andExpect(jsonPath("$.results").doesNotExist())
 				.andExpect(jsonPath("$..voteCount").doesNotExist())
 				.andExpect(jsonPath("$..percentage").doesNotExist())
-				.andExpect(jsonPath("$.participantCount").value(31));
+				.andExpect(jsonPath("$.participantCount").value(31))
+				// The viewer's own selection is not an aggregate, so it stays visible inside T-30.
+				.andExpect(jsonPath("$.myOptionId").value(3));
 		verify(counterRepository, never()).findResults(1L);
 		verify(ballotRepository, times(1)).countByPollId(1L);
 	}
@@ -70,7 +72,7 @@ class VoteResultApiTest {
 	void returnsLiveNumbersOnlyAfterVoting() throws Exception {
 		Poll poll = poll(PollStatus.OPEN, 60);
 		when(pollRepository.findById(1L)).thenReturn(Optional.of(poll));
-		when(ballotRepository.existsByPollIdAndVoterKey(1L, VOTER_KEY)).thenReturn(false, true);
+		when(ballotRepository.findSelectedOptionId(1L, VOTER_KEY)).thenReturn(Optional.empty()).thenReturn(Optional.of(3L));
 		when(ballotRepository.countByPollId(1L)).thenReturn(31L);
 		when(counterRepository.findResults(1L)).thenReturn(List.of(
 				new PollOptionCounterRepository.OptionResult(3L, 4L, new BigDecimal("80.0"))));
@@ -80,11 +82,13 @@ class VoteResultApiTest {
 				.andExpect(jsonPath("$.phase").value("LIVE_VISIBLE"))
 				.andExpect(jsonPath("$.voted").value(false))
 				.andExpect(jsonPath("$.participantCount").value(31))
-				.andExpect(jsonPath("$.results").doesNotExist());
+				.andExpect(jsonPath("$.results").doesNotExist())
+				.andExpect(jsonPath("$.myOptionId").doesNotExist());
 
 		mvc.perform(get("/api/polls/1/results").requestAttr("voterKey", VOTER_KEY))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.voted").value(true))
+				.andExpect(jsonPath("$.myOptionId").value(3))
 				.andExpect(jsonPath("$.results[0].voteCount").value(4));
 		verify(counterRepository, times(1)).findResults(1L);
 	}

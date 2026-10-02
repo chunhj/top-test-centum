@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Link as RouterLink, Route, Routes } from 'react-router-dom'
 import AppBar from '@mui/material/AppBar'
 import Box from '@mui/material/Box'
@@ -9,10 +10,12 @@ import { useNavigate } from 'react-router-dom'
 import { Logo } from './components/Logo'
 import { PollListPage } from './pages/PollListPage'
 import { PollDetailPage } from './pages/PollDetailPage'
-import { AdminPage } from './pages/AdminPage'
-import { AdminEditPollPage } from './pages/AdminEditPollPage'
 import { AdminAuthProvider, useAdminAuth } from './lib/adminAuth'
 import { tokens } from './theme'
+
+// Admin screens (and the date-picker stack they pull in) are split out of the voter bundle.
+const AdminPage = lazy(() => import('./pages/AdminPage').then((module) => ({ default: module.AdminPage })))
+const AdminEditPollPage = lazy(() => import('./pages/AdminEditPollPage').then((module) => ({ default: module.AdminEditPollPage })))
 
 function App() {
   return (
@@ -108,8 +111,8 @@ function AppShell() {
       <Routes>
         <Route path="/" element={<PollListPage />} />
         <Route path="/polls/:pollId" element={<PollDetailPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/admin/polls/:pollId/edit" element={<AdminEditPollPage />} />
+        <Route path="/admin" element={<Suspense fallback={null}><AdminPage /></Suspense>} />
+        <Route path="/admin/polls/:pollId/edit" element={<Suspense fallback={null}><AdminEditPollPage /></Suspense>} />
       </Routes>
     </>
   )

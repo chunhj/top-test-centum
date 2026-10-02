@@ -40,7 +40,9 @@ class VoteStreamPhaseSweepTest {
 		// the same poll now inside the T-30 "hide numbers" window.
 		Poll beforeBoundary = pollWindow(-60, 90);
 		Poll afterBoundary = pollWindow(-60, 10);
-		when(pollRepository.findById(1L)).thenReturn(Optional.of(beforeBoundary), Optional.of(afterBoundary));
+		// Chained thenReturn (same consecutive-stubbing behaviour) instead of the varargs overload,
+		// which creates a generic Optional<Poll>[] and triggers an unchecked warning.
+		when(pollRepository.findById(1L)).thenReturn(Optional.of(beforeBoundary)).thenReturn(Optional.of(afterBoundary));
 		when(voteResultService.findResults(anyLong(), anyString()))
 				.thenReturn(new PollResultsResponse(1L, PollPhase.LIVE_VISIBLE, false, 0L, null));
 		when(voteResultService.loadSnapshot(1L))

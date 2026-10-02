@@ -26,12 +26,17 @@ public class AnonymousVoterFilter extends OncePerRequestFilter {
 	static final String COOKIE_NAME = "anonymous_token";
 	private static final SecureRandom RANDOM = new SecureRandom();
 	private final byte[] secret;
+	// Browsers drop Secure cookies received over plain HTTP (except localhost), which would make every
+	// request look like a new voter. Keep true in production (HTTPS); only disable for HTTP LAN testing.
+	private final boolean cookieSecure;
 
-	public AnonymousVoterFilter(@Value("${anonymous.voter.secret}") String secret) {
+	public AnonymousVoterFilter(@Value("${anonymous.voter.secret}") String secret,
+			@Value("${anonymous.cookie.secure:true}") boolean cookieSecure) {
 		if (secret.getBytes(StandardCharsets.UTF_8).length < 32) {
 			throw new IllegalArgumentException("ANONYMOUS_VOTER_SECRET must be at least 32 bytes");
 		}
 		this.secret = secret.getBytes(StandardCharsets.UTF_8);
+		this.cookieSecure = cookieSecure;
 	}
 
 	@Override
@@ -46,7 +51,7 @@ public class AnonymousVoterFilter extends OncePerRequestFilter {
 		if (token == null) {
 			token = newToken();
 			response.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie.from(COOKIE_NAME, token)
-					.httpOnly(true).secure(true).sameSite("Lax").path("/").build().toString());
+					.httpOnly(true).secure(cookieSecure).sameSite("Lax").path("/").build().toString());
 		}
 		request.setAttribute(VOTER_KEY_ATTRIBUTE, voterKey(token));
 		chain.doFilter(request, response);

@@ -16,6 +16,12 @@ export interface AdminPollFormValues {
   options: AdminPollOptionInput[]
 }
 
+const toApiOption = ({ name, team, imageUrl }: AdminPollOptionInput) => ({
+  name,
+  team: team || undefined,
+  imageUrl: imageUrl || undefined,
+})
+
 // Conversions between the admin poll form and the admin API payloads. Empty optional text
 // fields are sent as undefined (omitted), matching what the server expects.
 
@@ -28,11 +34,7 @@ export function toAdminPollInput(values: AdminPollFormValues): AdminPollInput {
     maxSelections: 1,
     startsAt: values.startsAt,
     endsAt: values.endsAt,
-    options: values.options.map((option) => ({
-      name: option.name,
-      team: option.team || undefined,
-      imageUrl: option.imageUrl || undefined,
-    })),
+    options: values.options.map(toApiOption),
   }
 }
 
@@ -44,10 +46,8 @@ export function toAdminPollUpdateInput(values: AdminPollFormValues): AdminPollUp
     startsAt: values.startsAt,
     endsAt: values.endsAt,
     options: values.options.map((option) => ({
+      ...toApiOption(option),
       optionId: option.optionId,
-      name: option.name,
-      team: option.team || undefined,
-      imageUrl: option.imageUrl || undefined,
     })),
   }
 }

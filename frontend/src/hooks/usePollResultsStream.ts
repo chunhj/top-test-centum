@@ -15,6 +15,8 @@ export function usePollResultsStream(pollId: string) {
     if (!pollId) return
 
     const stream = new EventSource(`/api/polls/${pollId}/stream`)
+    const resultsKey = queryKeys.pollResults(pollId)
+    let resultsHidden = false
 
     // vote-result carries the same PollResults body as GET /results (built per viewer on the
     // server), so write it straight into the cache instead of refetching on every vote.
@@ -27,27 +29,42 @@ export function usePollResultsStream(pollId: string) {
       }
       if (payload && payload.pollId === Number(pollId)) {
         const results = payload
+        if (resultsHidden && results.phase === 'LIVE_VISIBLE') return
         // A polling refetch already in flight may carry a snapshot older than this event and
         // would overwrite it when it lands. Cancel it first (reverting to the pre-fetch state),
         // then apply the event.
         void queryClient
-          .cancelQueries({ queryKey: queryKeys.pollResults(pollId) })
-          .then(() => queryClient.setQueryData(queryKeys.pollResults(pollId), results))
+          .cancelQueries({ queryKey: resultsKey })
+          .then(() => {
+            if (resultsHidden && results.phase === 'LIVE_VISIBLE') return
+            queryClient.setQueryData(resultsKey, results)
+          })
       } else {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.pollResults(pollId),
-        })
+        void queryClient.invalidateQueries({ queryKey: resultsKey })
       }
     })
 
     // The phase also drives whether voting is open (poll detail), so refresh both queries.
-    stream.addEventListener('phase-changed', () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.pollResults(pollId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.poll(pollId),
-      })
+    stream.addEventListener('phase-changed', (event) => {
+      let phase: unknown
+      try {
+        phase = (JSON.parse(event.data) as { phase?: unknown }).phase
+      } catch {
+        // An invalid event still triggers a server refresh below.
+      }
+      if (phase === 'RESULTS_HIDDEN') {
+        resultsHidden = true
+        void queryClient.cancelQueries({ queryKey: resultsKey }).then(() => {
+          queryClient.setQueryData<PollResults>(resultsKey, (current) =>
+            current ? { ...current, phase, results: undefined } : current,
+          )
+          void queryClient.invalidateQueries({ queryKey: resultsKey })
+        })
+      } else {
+        if (phase === 'CLOSED' || phase === 'LIVE_VISIBLE') resultsHidden = false
+        void queryClient.invalidateQueries({ queryKey: resultsKey })
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.poll(pollId) })
     })
 
     return () => stream.close()

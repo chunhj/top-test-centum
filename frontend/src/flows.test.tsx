@@ -85,11 +85,13 @@ afterEach(() => {
 
 describe('voting', () => {
   it('votes, then re-votes for another candidate with a UUID Idempotency-Key each time', async () => {
+    let votedOptionId: number | undefined
     const fetchMock = mockFetch((url, init) => {
       if (url === '/api/polls/1') return { body: pollDetail }
-      if (url === '/api/polls/1/results') return { body: hiddenResults }
+      if (url === '/api/polls/1/results') return { body: votedOptionId === undefined ? hiddenResults : { ...hiddenResults, voted: true, myOptionId: votedOptionId } }
       if (url === '/api/polls/1/votes' && init?.method === 'POST') {
-        return { body: { ballotId: 1, optionId: JSON.parse(String(init.body)).optionId } }
+        votedOptionId = JSON.parse(String(init.body)).optionId
+        return { body: { ballotId: 1, optionId: votedOptionId } }
       }
       return undefined
     })
@@ -98,7 +100,7 @@ describe('voting', () => {
     await screen.findByText('후보 A')
     fireEvent.click(within(cardOf('후보 A')).getByRole('button', { name: '투표하기' }))
     expect(await screen.findByText('내 투표가 저장되었습니다.')).toBeTruthy()
-    expect(within(cardOf('후보 A')).getByRole('button', { name: '내 투표 · 변경' })).toBeTruthy()
+    await waitFor(() => expect(within(cardOf('후보 A')).getByRole('button', { name: '내 투표 · 변경' })).toBeTruthy())
 
     fireEvent.click(within(cardOf('후보 B')).getByRole('button', { name: '투표하기' }))
     await waitFor(() => expect(within(cardOf('후보 B')).getByRole('button', { name: '내 투표 · 변경' })).toBeTruthy())
@@ -138,6 +140,28 @@ describe('voting', () => {
     await screen.findByText('후보 B')
     await waitFor(() => expect(within(cardOf('후보 B')).getByRole('button', { name: '내 투표 · 변경' })).toBeTruthy())
     expect(within(cardOf('후보 A')).getByRole('button', { name: '투표하기' })).toBeTruthy()
+  })
+
+  it('follows a newer server selection after voting on this page', async () => {
+    let serverOptionId = 3
+    mockFetch((url, init) => {
+      if (url === '/api/polls/1') return { body: pollDetail }
+      if (url === '/api/polls/1/results') return { body: { ...visibleResults, myOptionId: serverOptionId } }
+      if (url === '/api/polls/1/votes' && init?.method === 'POST') {
+        serverOptionId = 4
+        return { body: { ballotId: 1, optionId: 4 } }
+      }
+      return undefined
+    })
+    renderRoute('/polls/1')
+
+    await waitFor(() => expect(within(cardOf('후보 A')).getByRole('button', { name: '내 투표 · 변경' })).toBeTruthy())
+    fireEvent.click(within(cardOf('후보 B')).getByRole('button', { name: '투표하기' }))
+    await waitFor(() => expect(within(cardOf('후보 B')).getByRole('button', { name: '내 투표 · 변경' })).toBeTruthy())
+
+    act(() => latestStream().emit('vote-result', { ...visibleResults, myOptionId: 3 }))
+    await waitFor(() => expect(within(cardOf('후보 A')).getByRole('button', { name: '내 투표 · 변경' })).toBeTruthy())
+    expect(within(cardOf('후보 B')).getByRole('button', { name: '투표하기' })).toBeTruthy()
   })
 
   it('does not crash when results reference a candidate missing from the poll detail', async () => {
@@ -241,6 +265,30 @@ describe('SSE', () => {
       expect(callsTo('/api/polls/1')).toBeGreaterThan(detailBefore)
       expect(callsTo('/api/polls/1/results')).toBeGreaterThan(resultsBefore)
     })
+  })
+
+  it('hides cached numbers at T-30 before a slow refetch and ignores an old result event', async () => {
+    let resultsCalls = 0
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/polls/1') return { ok: true, status: 200, json: async () => pollDetail }
+      if (url === '/api/polls/1/results') {
+        resultsCalls += 1
+        if (resultsCalls > 1) await new Promise((resolve) => setTimeout(resolve, 150))
+        return { ok: true, status: 200, json: async () => resultsCalls === 1 ? visibleResults : { ...visibleResults, phase: 'RESULTS_HIDDEN', results: undefined } }
+      }
+      return { ok: false, status: 404, json: async () => ({}) }
+    }))
+    renderRoute('/polls/1')
+
+    await screen.findByText(/100% · 6표/)
+    act(() => latestStream().emit('phase-changed', { phase: 'RESULTS_HIDDEN' }))
+    await waitFor(() => expect(resultsCalls).toBeGreaterThan(1))
+    expect(screen.queryByText(/100% · 6표/)).toBeNull()
+    expect(screen.getByText('집계 중입니다')).toBeTruthy()
+
+    act(() => latestStream().emit('vote-result', visibleResults))
+    await new Promise((resolve) => setTimeout(resolve, 170))
+    expect(screen.queryByText(/100% · 6표/)).toBeNull()
   })
 
   it('keeps a vote-result payload when an older in-flight results fetch lands afterwards', async () => {

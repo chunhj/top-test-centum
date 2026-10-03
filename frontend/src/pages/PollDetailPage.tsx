@@ -5,7 +5,7 @@ import Box from '@mui/material/Box'
 import Snackbar from '@mui/material/Snackbar'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import { castVote, fetchPollDetails, fetchPollResults } from '../api/pollApi'
+import { castVote, fetchPollDetails, fetchPollResults, type PollResults } from '../api/pollApi'
 import { PageStatus } from '../components/PageStatus'
 import { BackLink } from '../components/BackLink'
 import { CandidateSection } from '../components/CandidateSection'
@@ -21,7 +21,7 @@ import { tokens } from '../theme'
 
 export function PollDetailPage() {
   const { pollId = '' } = useParams()
-  // Keyed by pollId so local state (selection, sort, toast) and the vote mutation state reset
+  // Keyed by pollId so local state (sort, toast) and the vote mutation state reset
   // when the route moves to another poll without unmounting the page.
   return <PollDetailView key={pollId} pollId={pollId} />
 }
@@ -29,7 +29,6 @@ export function PollDetailPage() {
 function PollDetailView({ pollId }: { pollId: string }) {
   const queryClient = useQueryClient()
 
-  const [selectedOptionId, setSelectedOptionId] = useState<number>()
   const [toastOpen, setToastOpen] = useState(false)
 
   const pollQuery = useQuery({
@@ -51,13 +50,19 @@ function PollDetailView({ pollId }: { pollId: string }) {
   const voteMutation = useMutation({
     mutationFn: (optionId: number) => castVote(pollId, optionId),
 
-    onSuccess: ({ optionId }) => {
-      setSelectedOptionId(optionId)
+    onSuccess: async ({ optionId }) => {
+      const key = queryKeys.pollResults(pollId)
+      await queryClient.cancelQueries({ queryKey: key })
+      queryClient.setQueryData<PollResults>(key, (current) => ({
+        pollId: Number(pollId),
+        phase: current?.phase ?? pollQuery.data!.phase,
+        participantCount: current?.participantCount ?? 0,
+        ...current,
+        voted: true,
+        myOptionId: optionId,
+      }))
       setToastOpen(true)
-
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.pollResults(pollId),
-      })
+      void queryClient.invalidateQueries({ queryKey: key })
     },
   })
 
@@ -93,9 +98,7 @@ function PollDetailView({ pollId }: { pollId: string }) {
 
   const rankOf = createRankLookup(resultsQuery.data?.results, pollQuery.data.options)
   const showRanks = canShowRanks(resultsQuery.data)
-  // The server reports the viewer's own selection (survives reloads); a vote made on this page
-  // takes precedence until the refetched results catch up.
-  const myOptionId = selectedOptionId ?? resultsQuery.data?.myOptionId
+  const myOptionId = resultsQuery.data?.myOptionId
 
   const isVotingOpen =
     pollQuery.data.phase === 'LIVE_VISIBLE' ||

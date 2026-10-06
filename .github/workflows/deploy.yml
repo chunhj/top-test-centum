@@ -1,0 +1,67 @@
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    env:
+      ADMIN_SEED_PASSWORD: ci-only-admin-password
+      ANONYMOUS_VOTER_SECRET: ci-only-anonymous-voter-secret-32
+      SPRING_DATASOURCE_PASSWORD: ci-only-postgres-password
+      POSTGRES_CONCURRENCY_TEST: 'true'
+      REDIS_INTEGRATION_TEST: 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Backend tests
+        working-directory: backend
+        run: sh ./gradlew test --no-daemon
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Frontend tests
+        working-directory: frontend
+        run: npm ci && npm test
+
+      - name: Deploy tested commit to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_DEPLOY_DIR: ${{ secrets.EC2_DEPLOY_DIR }}
+          EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          EC2_SSH_KNOWN_HOSTS: ${{ secrets.EC2_SSH_KNOWN_HOSTS }}
+        run: |
+          : "${EC2_HOST:?missing EC2_HOST}"
+          : "${EC2_USER:?missing EC2_USER}"
+          : "${EC2_DEPLOY_DIR:?missing EC2_DEPLOY_DIR}"
+          : "${EC2_SSH_PRIVATE_KEY:?missing EC2_SSH_PRIVATE_KEY}"
+          : "${EC2_SSH_KNOWN_HOSTS:?missing EC2_SSH_KNOWN_HOSTS}"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$EC2_SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$EC2_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          printf -v remote_dir '%q' "$EC2_DEPLOY_DIR"
+          git archive --format=tar "$GITHUB_SHA" | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=10 "$EC2_USER@$EC2_HOST" "cd $remote_dir && tar -xf - && bash deploy.sh"

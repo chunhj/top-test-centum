@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Deploy one tested TOP commit to the existing EC2 Compose project",
+  "parameters": {
+    "CommitSha": {
+      "type": "String",
+      "description": "Full Git commit SHA to deploy",
+      "allowedPattern": "^[0-9a-f]{40}$",
+      "interpolationType": "ENV_VAR"
+    }
+  },
+  "mainSteps": [
+    {
+      "action": "aws:runShellScript",
+      "name": "deploy",
+      "inputs": {
+        "timeoutSeconds": "1800",
+        "runCommand": [
+          "set -euo pipefail",
+          "sha=\"$SSM_CommitSha\"",
+          "release=\"/home/ec2-user/top-releases/$sha\"",
+          "if [ ! -f \"$release/deploy.sh\" ]; then",
+          "  mkdir -p /home/ec2-user/top-releases",
+          "  temp=$(mktemp -d /home/ec2-user/top-releases/.deploy-XXXXXXXX)",
+          "  trap 'rm -rf \"$temp\"' EXIT",
+          "  curl --fail --location --silent --show-error \"https://codeload.github.com/chunhj/top-test-centum/tar.gz/$sha\" | tar -xz --strip-components=1 -C \"$temp\"",
+          "  mv \"$temp\" \"$release\"",
+          "  trap - EXIT",
+          "fi",
+          "test -f /home/ec2-user/top/.env",
+          "if [ ! -L \"$release/.env\" ]; then test ! -e \"$release/.env\"; ln -s /home/ec2-user/top/.env \"$release/.env\"; fi",
+          "test \"$(readlink \"$release/.env\")\" = /home/ec2-user/top/.env",
+          "cd \"$release\"",
+          "COMPOSE_PROJECT_NAME=top bash deploy.sh"
+        ]
+      }
+    }
+  ]
+}

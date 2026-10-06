@@ -7,12 +7,8 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: production-deploy
-  cancel-in-progress: false
-
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-24.04
     services:
       redis:
@@ -45,23 +41,51 @@ jobs:
         working-directory: frontend
         run: npm ci && npm test
 
-      - name: Deploy tested commit to EC2
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-          EC2_DEPLOY_DIR: ${{ secrets.EC2_DEPLOY_DIR }}
-          EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          EC2_SSH_KNOWN_HOSTS: ${{ secrets.EC2_SSH_KNOWN_HOSTS }}
+  deploy:
+    needs: test
+    runs-on: ubuntu-24.04
+    permissions:
+      id-token: write
+    steps:
+      - name: Show repository IDs for OIDC trust
+        run: echo "Owner ID=$GITHUB_REPOSITORY_OWNER_ID Repository ID=$GITHUB_REPOSITORY_ID"
+
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::503947799996:role/top-github-ssm-deploy
+          aws-region: ap-northeast-2
+          allowed-account-ids: '503947799996'
+
+      - name: Deploy tested commit through SSM
+        shell: bash
         run: |
-          : "${EC2_HOST:?missing EC2_HOST}"
-          : "${EC2_USER:?missing EC2_USER}"
-          : "${EC2_DEPLOY_DIR:?missing EC2_DEPLOY_DIR}"
-          : "${EC2_SSH_PRIVATE_KEY:?missing EC2_SSH_PRIVATE_KEY}"
-          : "${EC2_SSH_KNOWN_HOSTS:?missing EC2_SSH_KNOWN_HOSTS}"
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$EC2_SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$EC2_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-          printf -v remote_dir '%q' "$EC2_DEPLOY_DIR"
-          git archive --format=tar "$GITHUB_SHA" | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=10 "$EC2_USER@$EC2_HOST" "cd $remote_dir && tar -xf - && bash deploy.sh"
+          set -euo pipefail
+          command_id=$(aws ssm send-command \
+            --instance-ids i-02a25c3abe17d7867 \
+            --document-name top-deploy \
+            --parameters "CommitSha=$GITHUB_SHA" \
+            --query 'Command.CommandId' --output text)
+          echo "SSM command: $command_id"
+          for attempt in {1..240}; do
+            status=$(aws ssm get-command-invocation \
+              --command-id "$command_id" \
+              --instance-id i-02a25c3abe17d7867 \
+              --query Status --output text 2>/dev/null || true)
+            case "$status" in
+              Success) break ;;
+              Failed|Cancelled|TimedOut|Cancelling)
+                aws ssm get-command-invocation --command-id "$command_id" --instance-id i-02a25c3abe17d7867
+                exit 1 ;;
+            esac
+            sleep 5
+          done
+          if [ "$status" != Success ]; then
+            aws ssm get-command-invocation --command-id "$command_id" --instance-id i-02a25c3abe17d7867 || true
+            exit 1
+          fi
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id i-02a25c3abe17d7867 --query '{Status:Status,ResponseCode:ResponseCode,Output:StandardOutputContent}'
+
+      - name: Check public HTTP 200
+        run: |
+          curl --fail --silent --show-error --max-time 15 https://15.164.155.124/ >/dev/null
+          curl --fail --silent --show-error --max-time 15 https://15.164.155.124/api/polls >/dev/null

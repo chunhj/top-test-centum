@@ -6,7 +6,7 @@ docker compose config --quiet
 docker compose up -d --build --remove-orphans
 address=$(docker compose port backend 8080)
 base="http://127.0.0.1:${address##*:}"
-curl --fail --silent --show-error --retry 12 --retry-connrefused --retry-delay 5 --max-time 5 "$base/api/polls" >/dev/null
+curl --fail --silent --show-error --retry 24 --retry-all-errors --retry-delay 5 --max-time 5 "$base/api/polls" >/dev/null
 curl --fail --silent --show-error "$base/" >/dev/null
 docker compose ps
 

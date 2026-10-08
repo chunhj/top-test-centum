@@ -11,14 +11,25 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 @Configuration
 public class SecurityConfig {
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+		// Spring now serves the app on the public port itself (no Nginx in front), so actuator
+		// endpoints must stay reachable only from inside the container/host (e.g. load-test metrics).
+		RequestMatcher externalActuator = request -> request.getRequestURI().startsWith("/actuator")
+				&& !isLoopback(request.getRemoteAddr());
 		return http.csrf(csrf -> csrf.disable())
-				.authorizeHttpRequests(auth -> auth.requestMatchers("/api/admin/**").hasRole("ADMIN").anyRequest().permitAll())
+				.authorizeHttpRequests(auth -> auth.requestMatchers("/api/admin/**").hasRole("ADMIN")
+						.requestMatchers(externalActuator).denyAll()
+						.anyRequest().permitAll())
 				.httpBasic(basic -> basic.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))).build();
+	}
+
+	private static boolean isLoopback(String address) {
+		return "127.0.0.1".equals(address) || "::1".equals(address) || "0:0:0:0:0:0:0:1".equals(address);
 	}
 
 	@Bean

@@ -32,16 +32,16 @@ function Get-BackendMetric([string]$name) {
 
 function Get-SseActive { return Get-BackendMetric "top.sse.connections.active" }
 
-$publishedAddresses = @(docker compose -f $composeFile port nginx 80)
+$publishedAddresses = @(docker compose -f $composeFile port backend 8080)
 $composeExit = $LASTEXITCODE
 $publishedAddress = $publishedAddresses | Select-Object -First 1
 if ($composeExit -ne 0 -or $publishedAddress -notmatch ':(\d+)$') {
-    throw "Cannot resolve the published Nginx port. Start Compose first."
+    throw "Cannot resolve the published backend port. Start Compose first."
 }
 $baseUrl = if ($env:BASE_URL) { $env:BASE_URL.TrimEnd('/') } else { "http://127.0.0.1:$($Matches[1])" }
 $frontendNetwork = docker network ls --filter "label=com.docker.compose.project=poll-top-app" --filter "label=com.docker.compose.network=frontend" --format '{{.Name}}' | Select-Object -First 1
 if (-not $frontendNetwork) { throw "Cannot resolve the Compose frontend network." }
-$dockerBaseUrl = "http://nginx"
+$dockerBaseUrl = "http://backend:8080"
 
 Write-Host "Commands used:" -ForegroundColor Cyan
 Write-Host "  docker compose -f $composeFile exec -T postgres ..."

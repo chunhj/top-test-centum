@@ -1,22 +1,15 @@
 services:
-  nginx:
-    build: ./frontend
-    ports:
-      - "127.0.0.1:${HTTP_PORT:-8088}:80"
-    depends_on:
-      - backend
-    networks:
-      - frontend
-
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/top
       SPRING_DATASOURCE_USERNAME: top
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       SPRING_DATA_REDIS_HOST: redis
       ANONYMOUS_VOTER_SECRET: ${ANONYMOUS_VOTER_SECRET:?set ANONYMOUS_VOTER_SECRET in .env}
-      # Secure voter cookie; keep true behind HTTPS. Set false in .env only for plain-HTTP LAN testing.
+      # Secure voter cookie; browsers drop it over plain HTTP, so set false in .env when served over HTTP.
       ANONYMOUS_COOKIE_SECURE: ${ANONYMOUS_COOKIE_SECURE:-true}
       ADMIN_SEED_PASSWORD: ${ADMIN_SEED_PASSWORD:?set ADMIN_SEED_PASSWORD in .env}
     depends_on:
@@ -24,8 +17,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    expose:
-      - "8080"
+    ports:
+      - "${HTTP_PORT:-80}:8080"
     networks:
       - frontend
       - backend

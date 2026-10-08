@@ -87,5 +87,5 @@ jobs:
 
       - name: Check public HTTP 200
         run: |
-          curl --fail --silent --show-error --max-time 15 https://15.164.155.124/ >/dev/null
-          curl --fail --silent --show-error --max-time 15 https://15.164.155.124/api/polls >/dev/null
+          curl --fail --silent --show-error --max-time 15 http://15.164.155.124/ >/dev/null
+          curl --fail --silent --show-error --max-time 15 http://15.164.155.124/api/polls >/dev/null
